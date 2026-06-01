@@ -125,6 +125,29 @@
   function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(hide, 220); }
   function cancelHide() { clearTimeout(hideTimer); }
 
+  // 페이지 내 수식 컨테이너들을 문서 순서대로 수집(중첩 <math>는 부모 컨테이너로 흡수).
+  // content-forced.js 가 채워둔 window.__hwpRawMathSources[i] 와 같은 인덱스로 매칭한다.
+  function collectMathContainers() {
+    var nodes = document.querySelectorAll('.katex, mjx-container, math');
+    var out = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var e = nodes[i];
+      var tag = e.tagName && e.tagName.toLowerCase();
+      // KaTeX 출력은 .katex > .katex-mathml > math 구조 — 안쪽 math는 .katex 로 흡수
+      if (tag === 'math' && (e.closest('.katex') || e.closest('mjx-container'))) continue;
+      out.push(e);
+    }
+    return out;
+  }
+
+  function indexOfContainer(el) {
+    var container = (el.closest && (el.closest('.katex') || el.closest('mjx-container'))) ||
+                    (el.tagName && el.tagName.toLowerCase() === 'math' ? el : null);
+    if (!container) return -1;
+    var all = collectMathContainers();
+    return all.indexOf(container);
+  }
+
   function extractLatex(el) {
     // 1) KaTeX/MathJax 공통 — annotation 에 raw LaTeX
     var ann = el.querySelector('annotation[encoding="application/x-tex"]');
@@ -134,10 +157,18 @@
       var sc = el.querySelector('script[type="math/tex"], script[type^="math/tex"]');
       if (sc && sc.textContent) return sc.textContent.trim();
     }
-    // 3) MathML <math> textContent
+    // 3) 강제 모드 — content-forced.js 가 받아둔 raw 소스(.md 원문 등)에서 인덱스로 lookup
+    if (FORCED_MODE && Array.isArray(window.__hwpRawMathSources) && window.__hwpRawMathSources.length) {
+      var idx = indexOfContainer(el);
+      if (idx >= 0 && idx < window.__hwpRawMathSources.length) {
+        var rec = window.__hwpRawMathSources[idx];
+        if (rec && rec.src) return rec.src;
+      }
+    }
+    // 4) MathML <math> textContent
     var mml = (el.tagName && el.tagName.toLowerCase() === 'math') ? el : el.querySelector('math');
     if (mml && mml.textContent) return mml.textContent.trim();
-    // 4) 마지막 폴백 — 보이는 텍스트
+    // 5) 마지막 폴백 — 보이는 텍스트 (시각 문자라 정확도 낮음)
     return (el.textContent || '').trim();
   }
 

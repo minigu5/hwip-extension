@@ -32,7 +32,8 @@ function syncDynamicScripts(cb) {
   var staticMatches = getStaticMatches();
   chrome.permissions.getAll(function (perms) {
     var origins = (perms && perms.origins ? perms.origins : []).filter(function (o) {
-      if (!/^https?:\/\//.test(o)) return false;             // <all_urls> 등 제외
+      // http/https/file 만 동적 등록 — <all_urls> 같은 와일드카드는 제외
+      if (!/^(https?:\/\/|file:\/\/)/.test(o)) return false;
       return staticMatches.indexOf(o) === -1;                // 정적 매칭과 중복 제거
     });
 
@@ -66,7 +67,7 @@ function syncDynamicScripts(cb) {
 // origin 패턴(예: https://example.com/*)에 매칭되는 현재 탭들에 즉시 주입.
 // 새로고침 없이 바로 활성화되게 한다.
 function injectIntoMatchingTabs(originPattern) {
-  if (!originPattern || !/^https?:\/\//.test(originPattern)) return;
+  if (!originPattern || !/^(https?:\/\/|file:\/\/)/.test(originPattern)) return;
   chrome.tabs.query({ url: originPattern }, function (tabs) {
     if (chrome.runtime.lastError || !tabs) return;
     tabs.forEach(function (tab) {
@@ -106,6 +107,16 @@ chrome.permissions.onRemoved.addListener(function () { syncDynamicScripts(); });
 chrome.runtime.onMessage.addListener(function (msg, _sender, sendResponse) {
   if (msg && msg.type === 'sync-scripts') {
     syncDynamicScripts(function () { sendResponse({ ok: true }); });
+    return true; // 비동기 응답
+  }
+  // content script(파일/사이트)가 자신의 raw 소스(예: .md 원문)를 읽어달라고 요청.
+  // 컨텐츠 스크립트는 file:// 동일 출처 fetch가 막혀 있어 background를 거친다.
+  // background는 호스트 권한이 있는 한 file/http(s) 모두 fetch 가능.
+  if (msg && msg.type === 'fetch-text' && typeof msg.url === 'string') {
+    fetch(msg.url, { credentials: 'omit' })
+      .then(function (res) { return res.ok ? res.text() : Promise.reject(new Error('HTTP ' + res.status)); })
+      .then(function (text) { sendResponse({ ok: true, text: text }); })
+      .catch(function (err) { sendResponse({ ok: false, error: String(err && err.message || err) }); });
     return true; // 비동기 응답
   }
   return false;
