@@ -15,8 +15,9 @@ ChatGPT·Claude는 수식을 **KaTeX**로 렌더링하며, 원본 LaTeX를 DOM�
 
 ## 동작 방식 (사이트별)
 
-- **ChatGPT·Claude·Grok 등 (KaTeX + annotation):** 수식에 마우스를 올리면 **"HWP 복사"** 버튼이 떠서 원본 LaTeX를 추출·변환·복사한다.
-- **Gemini:** annotation이 없어 호버 버튼이 동작하지 않는다. 대신 수식을 선택해 `⌘/Ctrl+C`로 복사하면 클립보드의 LaTeX를 가로채 한글 수식으로 바꿔 준다. **이 복사 가로채기는 Gemini에서만 활성화**되며(`content.js`의 `HINT_SITE`), 그 외 사이트에서는 사용자의 복사 행위를 건드리지 않고 호버 "HWP 복사" 버튼으로만 변환한다.
+- **모든 지원 사이트 (ChatGPT·Claude·Gemini·Grok 등):** 수식에 마우스를 올리면 **"HWP 복사"** 버튼이 떠서 원본 LaTeX를 추출·변환·복사한다.
+  - KaTeX + annotation 방식 (ChatGPT·Claude·Grok 등): `<annotation encoding="application/x-tex">` 에서 직접 추출.
+  - Gemini: `<annotation>` 없이 부모 요소의 `data-math` 속성에 원본 LaTeX 저장 → 동일하게 호버 버튼으로 추출.
 
 ## 설치 (개발자 모드)
 
