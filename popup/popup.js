@@ -1,7 +1,6 @@
 'use strict';
 
-/* 팝업: 수동 LaTeX 입력 → window.LatexToHwp.convert → 출력 → 복사.
- * app.js 의 입력→변환→복사 흐름을 축약 이식 (KaTeX 미리보기는 제외). */
+/* 팝업: 수동 LaTeX 입력 → hwip.vercel.app API → 출력 → 복사. */
 (function () {
   var input = document.getElementById('input');
   var output = document.getElementById('output');
@@ -21,8 +20,10 @@
     });
   }
 
+  var API_URL = 'https://hwip.vercel.app/api/convert';
   var DEFAULT_HINT = hint.textContent;
   var hintTimer = null;
+  var debounceTimer = null;
 
   function flashHint(msg) {
     clearTimeout(hintTimer);
@@ -56,9 +57,20 @@
   }
 
   function render() {
-    var result = (window.LatexToHwp && window.LatexToHwp.convert)
-      ? window.LatexToHwp.convert(input.value) : '';
-    output.textContent = result;
+    var latex = input.value.trim();
+    if (!latex) { output.textContent = ''; return; }
+    output.textContent = '변환 중…';
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function() {
+      fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latex: latex })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) { output.textContent = data.result || ''; })
+      .catch(function() { output.textContent = '변환 실패 (네트워크 오류)'; });
+    }, 300);
   }
 
   input.addEventListener('input', render);
@@ -148,7 +160,7 @@
   var matches = (manifest.content_scripts && manifest.content_scripts[0] &&
     manifest.content_scripts[0].matches) || [];
   var INJECT_FILES = (manifest.content_scripts && manifest.content_scripts[0] &&
-    manifest.content_scripts[0].js) || ['lib/converter.js', 'content/content.js'];
+    manifest.content_scripts[0].js) || ['content/content.js'];
   var INJECT_CSS = (manifest.content_scripts && manifest.content_scripts[0] &&
     manifest.content_scripts[0].css) || ['content/content.css'];
 

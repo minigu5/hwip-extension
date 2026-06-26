@@ -19,12 +19,19 @@
     ? '.katex, mjx-container, math'
     : '.katex';
 
+  var API_URL = 'https://hwip.vercel.app/api/convert';
   var currentKatex = null;
   var hideTimer = null;
 
-  function convert(latex) {
-    return (window.LatexToHwp && window.LatexToHwp.convert)
-      ? window.LatexToHwp.convert(latex) : '';
+  function convert(latex, callback) {
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ latex: latex })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) { callback(null, data.result || ''); })
+    .catch(function(err) { callback(err, ''); });
   }
   function hasAnnotation(el) {
     return !!(el && el.querySelector('annotation[encoding="application/x-tex"]'));
@@ -188,9 +195,13 @@
     e.stopPropagation();
     var latex = currentKatex ? extractLatex(currentKatex) : '';
     if (!latex) { flash('수식 없음'); return; }
-    var hwp = convert(latex) || latex;
-    if (!hwp) { flash('변환 실패'); return; }
-    copyText(hwp, function () { flash('복사됨!'); });
+    flash('변환 중…');
+    btn.disabled = true;
+    convert(latex, function(err, hwp) {
+      btn.disabled = false;
+      if (err || !hwp) { flash('변환 실패'); return; }
+      copyText(hwp, function () { flash('복사됨!'); });
+    });
   });
   btn.addEventListener('mousedown', function (e) { e.stopPropagation(); });
 })();

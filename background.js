@@ -18,7 +18,7 @@
  */
 
 var SCRIPT_ID = 'hwp-force-on';
-var INJECT_JS_FORCED = ['lib/converter.js', 'content/content-forced.js', 'content/content.js'];
+var INJECT_JS_FORCED = ['content/content-forced.js', 'content/content.js'];
 var INJECT_CSS = ['content/content.css'];
 
 function getStaticMatches() {
