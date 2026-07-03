@@ -1,0 +1,96 @@
+:root {
+  --border: #e2e5ea;
+  --accent: #2f6df6;
+  --accent-hover: #2257d4;
+  --text: #1f2430;
+  --muted: #707888;
+  --bg: #f3f4f7;
+  --green: #1e9e5a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  color: var(--text);
+  background: #fff;
+}
+.wrap { padding: 20px 18px 22px; }
+h1 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 18px;
+  color: var(--text);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.row label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  width: 70px;
+  flex-shrink: 0;
+  color: var(--text);
+}
+select {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: var(--text);
+  background: #fff;
+  cursor: pointer;
+}
+select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.status {
+  margin: 16px 0 14px;
+  padding: 9px 11px;
+  background: var(--bg);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+  min-height: 38px;
+}
+.status.error { color: #c0392b; background: rgba(192, 57, 43, 0.08); }
+.status.success { color: var(--green); background: rgba(30, 158, 90, 0.08); }
+.btn {
+  width: 100%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 10px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.btn:hover:not(:disabled) { background: var(--accent-hover); }
+.btn:disabled { background: #c2c7d0; cursor: not-allowed; }
+.btn.success { background: var(--green); }
+.btn-loadfont {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.btn-loadfont:hover:not(:disabled) { background: var(--bg); }
+.btn-loadfont:disabled { opacity: 0.5; cursor: not-allowed; }
+.preview-info {
+  margin-top: 14px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+}

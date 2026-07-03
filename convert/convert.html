@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HWPX 변환 — 휩</title>
+  <link rel="stylesheet" href="convert.css" />
+</head>
+<body>
+  <div class="wrap">
+    <h1>📄 HWPX 문서로 변환</h1>
+
+    <div class="row">
+      <label for="fontFamily">글꼴</label>
+      <select id="fontFamily"></select>
+      <button id="loadLocalFontsBtn" class="btn-loadfont" type="button">내 PC 글꼴</button>
+    </div>
+
+    <div class="row">
+      <label for="fontSize">글자 크기</label>
+      <select id="fontSize">
+        <option value="9">9pt</option>
+        <option value="10" selected>10pt (기본)</option>
+        <option value="11">11pt</option>
+        <option value="12">12pt</option>
+        <option value="14">14pt</option>
+        <option value="16">16pt</option>
+      </select>
+    </div>
+
+    <div id="status" class="status">AI 응답에서 추출한 마크다운을 변환합니다…</div>
+
+    <button id="downloadBtn" class="btn" type="button">다운로드</button>
+
+    <p class="preview-info">수식은 한글 수식 편집기 문법으로 자동 변환됩니다.</p>
+  </div>
+
+  <!-- 번들 라이브러리 — CDN 없이 로컬에서 로드 -->
+  <script src="../lib/jszip.min.js"></script>
+  <script src="../lib/marked.min.js"></script>
+  <script src="../lib/converter.js"></script>
+  <script src="../lib/md-to-hwpx.js"></script>
+  <script src="convert.js"></script>
+</body>
+</html>
