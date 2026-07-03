@@ -1,13 +1,21 @@
 {
   "manifest_version": 3,
   "name": "휩 - LaTeX → 한글(HWP) 수식 복사",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "AI 사이트의 수식에 마우스를 올리면 한글(HWP) 수식 편집기 문법으로 변환·복사합니다.",
   "permissions": [
     "clipboardWrite",
     "clipboardRead",
     "scripting",
-    "activeTab"
+    "activeTab",
+    "storage",
+    "windows"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["templates/blank.hwpx"],
+      "matches": ["<all_urls>"]
+    }
   ],
   "optional_host_permissions": [
     "<all_urls>",
@@ -55,7 +63,8 @@
         "https://kimi.moonshot.cn/*"
       ],
       "js": [
-        "content/content.js"
+        "content/content.js",
+        "content/report-extract.js"
       ],
       "css": [
         "content/content.css"

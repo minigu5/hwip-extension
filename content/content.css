@@ -36,3 +36,35 @@
 .hwp-copy-btn.copied {
   background: #1e9e5a !important;
 }
+
+/* 보고서 → HWPX 변환 버튼 바 */
+.hwp-report-bar {
+  display: flex !important;
+  justify-content: flex-end !important;
+  margin: 6px 0 4px !important;
+  padding: 0 !important;
+}
+.hwp-report-btn {
+  border: none !important;
+  background: #16a34a !important;
+  color: #ffffff !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+    "Malgun Gothic", sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 5px 12px !important;
+  border-radius: 7px !important;
+  cursor: pointer !important;
+  transition: background 0.12s ease !important;
+  white-space: nowrap !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15) !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+.hwp-report-btn:hover {
+  background: #15803d !important;
+}
+.hwp-report-btn:disabled {
+  background: #9aafd8 !important;
+  cursor: not-allowed !important;
+}

@@ -18,7 +18,7 @@
  */
 
 var SCRIPT_ID = 'hwp-force-on';
-var INJECT_JS_FORCED = ['content/content-forced.js', 'content/content.js'];
+var INJECT_JS_FORCED = ['content/content-forced.js', 'content/content.js', 'content/report-extract.js'];
 var INJECT_CSS = ['content/content.css'];
 
 function getStaticMatches() {
@@ -103,10 +103,51 @@ chrome.permissions.onAdded.addListener(function (perms) {
 });
 chrome.permissions.onRemoved.addListener(function () { syncDynamicScripts(); });
 
+// 보고서 변환 팝업 윈도우 ID 추적 (단일 팝업 보장)
+var reportPopupId = null;
+
+chrome.windows.onRemoved.addListener(function (windowId) {
+  if (windowId === reportPopupId) reportPopupId = null;
+});
+
 // popup이 살아있다면 활성화 완료를 알 수 있도록 메시지도 받아 처리.
 chrome.runtime.onMessage.addListener(function (msg, _sender, sendResponse) {
   if (msg && msg.type === 'sync-scripts') {
     syncDynamicScripts(function () { sendResponse({ ok: true }); });
+    return true; // 비동기 응답
+  }
+  // 보고서 → HWPX 팝업 창 열기 (단일 팝업: 이미 열려 있으면 reload 후 focus)
+  if (msg && msg.type === 'open-report-popup') {
+    var popupUrl = chrome.runtime.getURL('convert/convert.html');
+
+    function openNew() {
+      chrome.windows.create(
+        { url: popupUrl, type: 'popup', width: 400, height: 340 },
+        function (win) {
+          reportPopupId = win ? win.id : null;
+          sendResponse({ ok: true });
+        }
+      );
+    }
+
+    if (reportPopupId !== null) {
+      chrome.windows.get(reportPopupId, function (win) {
+        if (chrome.runtime.lastError || !win) {
+          reportPopupId = null;
+          openNew();
+        } else {
+          // 기존 팝업 reload → 새 storage 데이터 반영 후 포커스
+          chrome.tabs.query({ windowId: reportPopupId }, function (tabs) {
+            if (tabs && tabs[0]) chrome.tabs.reload(tabs[0].id);
+            chrome.windows.update(reportPopupId, { focused: true }, function () {
+              sendResponse({ ok: true });
+            });
+          });
+        }
+      });
+    } else {
+      openNew();
+    }
     return true; // 비동기 응답
   }
   // content script(파일/사이트)가 자신의 raw 소스(예: .md 원문)를 읽어달라고 요청.
