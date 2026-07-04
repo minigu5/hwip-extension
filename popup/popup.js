@@ -7,6 +7,12 @@
   var copyBtn = document.getElementById('copyBtn');
   var hint = document.getElementById('hint');
   var siteLinkBtn = document.getElementById('siteLinkBtn');
+  var settingsBtn = document.getElementById('settingsBtn');
+  var backBtn = document.getElementById('backBtn');
+  var mainView = document.getElementById('mainView');
+  var settingsView = document.getElementById('settingsView');
+  var toggleFormulaCopy = document.getElementById('toggleFormulaCopy');
+  var toggleHwpxReport = document.getElementById('toggleHwpxReport');
 
   if (siteLinkBtn) {
     siteLinkBtn.addEventListener('click', function (e) {
@@ -89,6 +95,44 @@
 
   render();
   input.focus();
+
+  // ── 설정 뷰 전환 ───────────────────────────────────────────────
+  var STORAGE_DEFAULTS = { autoFormulaCopy: true, autoHwpxReport: true };
+
+  function showSettings() {
+    mainView.hidden = true;
+    settingsView.hidden = false;
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.get(STORAGE_DEFAULTS, function (s) {
+        toggleFormulaCopy.checked = !!s.autoFormulaCopy;
+        toggleHwpxReport.checked = !!s.autoHwpxReport;
+      });
+    }
+  }
+
+  function showMain() {
+    settingsView.hidden = true;
+    mainView.hidden = false;
+    input.focus();
+  }
+
+  if (settingsBtn) settingsBtn.addEventListener('click', showSettings);
+  if (backBtn) backBtn.addEventListener('click', showMain);
+
+  if (toggleFormulaCopy) {
+    toggleFormulaCopy.addEventListener('change', function () {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.sync.set({ autoFormulaCopy: toggleFormulaCopy.checked });
+      }
+    });
+  }
+  if (toggleHwpxReport) {
+    toggleHwpxReport.addEventListener('change', function () {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.sync.set({ autoHwpxReport: toggleHwpxReport.checked });
+      }
+    });
+  }
 
   // ── 현재 페이지 상태 + 활성화 흐름 ─────────────────────────────
   // 자동 지원 사이트(manifest content_scripts.matches): 그대로 동작.

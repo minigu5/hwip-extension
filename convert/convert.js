@@ -6,6 +6,7 @@
   var fontFamilySel = document.getElementById('fontFamily');
   var fontSizeSel = document.getElementById('fontSize');
   var loadLocalFontsBtn = document.getElementById('loadLocalFontsBtn');
+  var fileNameInput = document.getElementById('fileNameInput');
 
   var md = '';
   var savedFont = '';
@@ -120,6 +121,16 @@
     }
   });
 
+  function extractMdTitle(text) {
+    if (!text) return '';
+    var m = text.match(/^#\s+(.+)/m);
+    return m ? m[1].replace(/[*_`]/g, '').trim() : '';
+  }
+
+  function sanitizeFilename(name) {
+    return (name || '').replace(/[\\/:*?"<>|\t\n\r]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 100) || 'output';
+  }
+
   function doConvert() {
     if (!md) { setStatus('마크다운이 없습니다.', 'error'); return; }
 
@@ -147,10 +158,14 @@
 
     window.MarkdownToHwpx.convertMarkdown(md, options, deps)
       .then(function (blob) {
+        var customName = fileNameInput ? fileNameInput.value.trim() : '';
+        var stem = customName
+          ? sanitizeFilename(customName)
+          : extractMdTitle(md) || 'report';
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
-        a.download = 'report.hwpx';
+        a.download = stem + '.hwpx';
         document.body.appendChild(a);
         a.click();
         setTimeout(function () {
@@ -202,6 +217,10 @@
         var preview = md.slice(0, 60).replace(/\n/g, ' ');
         setStatus('준비됨: ' + preview + (md.length > 60 ? '…' : ''), '');
         downloadBtn.disabled = false;
+        if (fileNameInput && !fileNameInput.value.trim()) {
+          var autoTitle = extractMdTitle(md);
+          if (autoTitle) fileNameInput.value = autoTitle;
+        }
       }
     });
   }

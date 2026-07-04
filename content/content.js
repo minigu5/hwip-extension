@@ -11,6 +11,17 @@
   if (window.__hwpFormulaCopyInjected) return; // 중복 주입 방지
   window.__hwpFormulaCopyInjected = true;
 
+  var storageApi = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync;
+  if (storageApi) {
+    chrome.storage.sync.get({ autoFormulaCopy: true }, function (s) {
+      if (s.autoFormulaCopy) init();
+    });
+  } else {
+    init();
+  }
+
+  function init() {
+
   var BTN_LABEL = 'HWP 복사';
 
   // 강제 적용 사이트면 셀렉터와 추출 경로를 확장한다(content-forced.js 가 먼저 세팅).
@@ -204,4 +215,6 @@
     });
   });
   btn.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+
+  } // end init
 })();

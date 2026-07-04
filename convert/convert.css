@@ -88,6 +88,31 @@ select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
 }
 .btn-loadfont:hover:not(:disabled) { background: var(--bg); }
 .btn-loadfont:disabled { opacity: 0.5; cursor: not-allowed; }
+.filename-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.filename-row input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: var(--text);
+  background: #fff;
+}
+.filename-row input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.ext-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .preview-info {
   margin-top: 14px;
   font-size: 0.75rem;

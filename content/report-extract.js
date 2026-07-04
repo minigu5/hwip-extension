@@ -12,6 +12,17 @@
   if (window.__hwpReportExtractInjected) return;
   window.__hwpReportExtractInjected = true;
 
+  var storageApi = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync;
+  if (storageApi) {
+    chrome.storage.sync.get({ autoHwpxReport: true }, function (s) {
+      if (s.autoHwpxReport) init();
+    });
+  } else {
+    init();
+  }
+
+  function init() {
+
   // ── 사이트별 응답 컨텐츠 셀렉터 ──────────────────────────────
   var CONTENT_SELECTORS = [
     '[data-message-author-role="assistant"] .markdown',  // ChatGPT
@@ -151,6 +162,43 @@
     return textContent.replace(/\s/g, '').length > mathPart.length * 1.5;
   }
 
+  // 인라인 LaTeX 필터: 한국어·텍스트 위주이면 텍스트로, 수식이면 $...$로 반환
+  function filterLatexInline(latex, fallbackNode) {
+    if (!latex) return (fallbackNode.textContent || '').replace(/\s+/g, ' ').trim();
+    if (/^[가-힣㄰-㆏\s.,!?:;()\[\]\-·]+$/.test(latex)) return latex;
+    if (/^[A-Za-z]+(\s+[A-Za-z,.-]+)+$/.test(latex)) return latex;
+    if (isKoreanHeavyMath(latex)) return latex;
+    if (/\\(?:text|mathrm|textbf|textrm)\{[^}]*[가-힣]/.test(latex)) {
+      return splitMixedLatex(latex, fallbackNode);
+    }
+    return '$' + latex + '$';
+  }
+
+  // \text{한국어...} 가 포함된 인라인 LaTeX를 텍스트·수식 조각으로 분리해 Markdown 반환.
+  // 예: "\text{다음이 성립} dT = dP" → "다음이 성립 $dT = dP$"
+  function splitMixedLatex(latex, fallbackNode) {
+    var parts = [];
+    var re = /\\(?:text|mathrm|textbf|textrm|textit)\{([^}]*)\}/g;
+    var last = 0, m;
+    re.lastIndex = 0;
+    while ((m = re.exec(latex)) !== null) {
+      var before = latex.slice(last, m.index).trim();
+      if (before) parts.push({ t: 'math', v: before });
+      var txt = m[1].trim();
+      if (txt) parts.push({ t: 'text', v: txt });
+      last = m.index + m[0].length;
+    }
+    var after = latex.slice(last).trim();
+    if (after) parts.push({ t: 'math', v: after });
+    if (!parts.length) return (fallbackNode.textContent || '').replace(/\s+/g, ' ').trim();
+    return parts.map(function (p) {
+      if (p.t === 'text') return p.v;
+      // 수식 기호(역슬래시·첨자·등호·연산자·알파벳)가 없으면 텍스트로
+      if (!/[\\{}^_=+\-*/|a-zA-Z]/.test(p.v)) return p.v;
+      return '$' + p.v + '$';
+    }).join('');
+  }
+
   // ── DOM → Markdown 변환 ──────────────────────────────────────
   function domToMd(root) {
     var raw = nodeToMd(root).trim();
@@ -181,6 +229,7 @@
     var segments = text.split(/([$][$][\s\S]*?[$][$])/g);
     for (var i = 0; i < segments.length; i += 2) {  // 짝수 인덱스 = 블록 밖
       segments[i] = segments[i].replace(/\(([^)\n]{1,200}?)\)/g, function (m, inner) {
+        if (/\$/.test(inner)) return m;  // 이미 $..$ 수식 포함 → 건드리지 않음
         if (/\\[a-zA-Z]/.test(inner) && !/^https?/.test(inner)) {
           return '$' + inner.trim() + '$';
         }
@@ -272,18 +321,21 @@
       if (gkd) { var gkl = getLatex(gkd); if (gkl) return '\n\n$$' + gkl + '$$\n\n'; }
       return '';
     }
-    // Gemini: SPAN.math-inline (인라인 수식) — data-math 직접 사용
+    // Gemini: SPAN.math-inline (인라인 수식)
     if (tag === 'span' && node.classList && node.classList.contains('math-inline')) {
       if (node.closest && node.closest('.math-block')) return '';
-      var gim = node.getAttribute('data-math');
-      if (gim) {
-        var gilat = gim.trim();
-        if (!gilat) return (node.textContent || '').replace(/\s+/g, ' ').trim();
-        if (/^[가-힣㄰-㆏\s.,!?:;()\[\]\-·]+$/.test(gilat)) return gilat;
-        if (/^[A-Za-z]+(\s+[A-Za-z,.-]+)+$/.test(gilat)) return gilat;
-        if (isKoreanHeavyMath(gilat)) return gilat;
-        return '$' + gilat + '$';
+      // 자식 .katex의 annotation 우선 사용 (data-math보다 정확)
+      var miKatex = node.querySelector && node.querySelector('.katex');
+      if (miKatex) {
+        var miAnn = miKatex.querySelector('annotation[encoding="application/x-tex"]');
+        if (miAnn && miAnn.textContent.trim()) {
+          return filterLatexInline(miAnn.textContent.trim(), miKatex);
+        }
       }
+      // annotation 없으면 data-math 폴백
+      var gim = node.getAttribute('data-math');
+      if (gim) return filterLatexInline(gim.trim(), node);
+      return (node.textContent || '').replace(/\s+/g, ' ').trim();
     }
 
     if (node.classList && node.classList.contains('katex-display')) {
@@ -311,14 +363,10 @@
       var lat2 = getLatex(node);
       if (lat2) {
         var lat2t = lat2.trim();
-        // 순수 한국어 또는 한국어+수식기호 없는 혼합 → 텍스트
-        if (/^[가-힣㄰-㆏\s.,!?:;()\[\]\-·]+$/.test(lat2t)) return lat2t;
-        if (isKoreanHeavyMath(lat2t)) return lat2t;
-        // 순수 영어 단어들 (LaTeX 명령·수식 기호 없음) → 텍스트 (Gemini가 영문 설명을 .katex로 감싸는 경우)
+        // 순수 영어 단어들 (LaTeX 명령·수식 기호 없음) → 텍스트
         if (/^[A-Za-z][A-Za-z0-9\s,.\-()]+$/.test(lat2t) && !/\\[a-zA-Z]/.test(lat2t) && !/[_^{}=<>]/.test(lat2t)) return lat2t;
-        return '$' + lat2t + '$';
+        return filterLatexInline(lat2t, node);
       }
-      // 폴백: 유니코드 텍스트 (최소한 읽을 수 있게)
       return (node.textContent || '').replace(/\s+/g, ' ').trim();
     }
     // MathJax (Gemini 등)
@@ -386,7 +434,12 @@
         }
       } catch (e) {}
     }
-    return results;
+    // 다른 요소의 조상인 요소 제거 — 셀렉터가 조상·자손 쌍을 둘 다 잡을 때 중복 버튼 방지
+    return results.filter(function (el) {
+      return !results.some(function (other) {
+        return other !== el && el.contains(other);
+      });
+    });
   }
 
   // ── 버튼 삽입 ────────────────────────────────────────────────
@@ -459,4 +512,6 @@
     scanTimer = setTimeout(scan, 600);
   });
   observer.observe(document.body, { childList: true, subtree: true });
+
+  } // end init
 })();
