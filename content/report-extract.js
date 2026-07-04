@@ -14,12 +14,13 @@
 
   // ── 사이트별 응답 컨텐츠 셀렉터 ──────────────────────────────
   var CONTENT_SELECTORS = [
-    '[data-message-author-role="assistant"] .markdown',
-    '[data-message-author-role="assistant"] .prose',
-    '.font-claude-message',
-    '.model-response-text',
-    '[data-role="model"] .markdown',
-    '.prose.dark\\:prose-invert',
+    '[data-message-author-role="assistant"] .markdown',  // ChatGPT
+    '[data-message-author-role="assistant"] .prose',     // ChatGPT fallback
+    '.font-claude-response',                             // Claude.ai
+    '.model-response-text',                             // Gemini
+    'model-response .markdown',                         // Gemini (커스텀 엘리먼트 내부)
+    '[data-role="model"] .markdown',                    // AI Studio
+    '.prose.dark\\:prose-invert',                       // Grok, Perplexity
     '[data-role="assistant"] .prose',
     '.ai-message .prose',
   ];
@@ -92,7 +93,16 @@
   function getLatex(el) {
     // 1) KaTeX annotation (htmlAndMathml 렌더 모드)
     var ann = el.querySelector('annotation[encoding="application/x-tex"]');
-    if (ann && ann.textContent.trim()) return ann.textContent.trim();
+    if (ann && ann.textContent.trim()) {
+      var raw = ann.textContent.trim();
+      // annotation에 구분자가 포함된 경우 strip ($$ ... $$, \[ ... \], \( ... \), $ ... $)
+      raw = raw.replace(/^\$\$([\s\S]*)\$\$$/, '$1')
+               .replace(/^\\\[([\s\S]*)\\\]$/, '$1')
+               .replace(/^\\\(([\s\S]*)\\\)$/, '$1')
+               .replace(/^\$([\s\S]*)\$$/, '$1')
+               .trim();
+      return raw;
+    }
 
     // 2) React fiber props (ChatGPT, react-katex 등)
     var fromFiber = getLatexFromFiber(el);
@@ -114,6 +124,31 @@
 
     // 4) Gemini: data-math on ancestor (already covered above)
     return null;
+  }
+
+  // data-math 값이 한국어 비율이 높고 수식 기호가 거의 없는 경우 → 텍스트로 처리
+  // 예: "압력 P" (수식 기호 없음), "온도 T와 압력" (한국어 비율 높음)
+  function isKoreanHeavyMath(latex) {
+    var korLen = (latex.match(/[가-힣]/g) || []).length;
+    if (!korLen) return false;
+    // 역슬래시 명령이나 수식 기호(_^=)가 있으면 수식으로 처리
+    if (/\\[a-zA-Z]/.test(latex) || /[_^=<>+\-*/|{}]/.test(latex)) return false;
+    // 수식 기호 없이 한국어가 한 글자라도 있으면 텍스트
+    return true;
+  }
+
+  // \text{한국어...} 비율이 수식 부분보다 훨씬 많은 경우 → 텍스트로 처리
+  // 예: "\text{상평형 선을 따라} dT, dP \text{만큼}"
+  function isTextHeavyLatex(latex) {
+    var textContent = '';
+    var withoutText = latex.replace(/\\(?:text|mathrm|textbf|textrm)\{([^}]*)\}/g, function (_, t) {
+      textContent += t;
+      return '';
+    });
+    if (!/[가-힣]/.test(textContent)) return false;
+    // 나머지 수식 기호 (공백·구두점 제외)
+    var mathPart = withoutText.replace(/[\s,;.()\[\]]/g, '').trim();
+    return textContent.replace(/\s/g, '').length > mathPart.length * 1.5;
   }
 
   // ── DOM → Markdown 변환 ──────────────────────────────────────
@@ -229,11 +264,40 @@
         tag === 'nav' || tag === 'header' || tag === 'footer') return '';
 
     // ── 수식 ────────────────────────────────────────────────────
+    // Gemini: DIV.math-block (블록 수식) — data-math 직접 사용
+    if (node.classList && node.classList.contains('math-block')) {
+      var gdm = node.getAttribute('data-math');
+      if (gdm && gdm.trim()) return '\n\n$$' + gdm.trim() + '$$\n\n';
+      var gkd = node.querySelector('.katex-display .katex') || node.querySelector('.katex');
+      if (gkd) { var gkl = getLatex(gkd); if (gkl) return '\n\n$$' + gkl + '$$\n\n'; }
+      return '';
+    }
+    // Gemini: SPAN.math-inline (인라인 수식) — data-math 직접 사용
+    if (tag === 'span' && node.classList && node.classList.contains('math-inline')) {
+      if (node.closest && node.closest('.math-block')) return '';
+      var gim = node.getAttribute('data-math');
+      if (gim) {
+        var gilat = gim.trim();
+        if (!gilat) return (node.textContent || '').replace(/\s+/g, ' ').trim();
+        if (/^[가-힣㄰-㆏\s.,!?:;()\[\]\-·]+$/.test(gilat)) return gilat;
+        if (/^[A-Za-z]+(\s+[A-Za-z,.-]+)+$/.test(gilat)) return gilat;
+        if (isKoreanHeavyMath(gilat)) return gilat;
+        return '$' + gilat + '$';
+      }
+    }
+
     if (node.classList && node.classList.contains('katex-display')) {
       var kinner = node.querySelector('.katex');
       if (kinner) {
         var klat = getLatex(kinner);
-        if (klat) return '\n\n$$' + klat + '$$\n\n';
+        if (klat) {
+          // \text{한국어} 비율이 수식 부분보다 훨씬 많으면 textContent 폴백
+          if (isTextHeavyLatex(klat)) {
+            var tcText = (kinner.textContent || '').replace(/\s+/g, ' ').trim();
+            return tcText ? '\n\n' + tcText + '\n\n' : '';
+          }
+          return '\n\n$$' + klat + '$$\n\n';
+        }
       }
       // annotation 없으면 inner .katex 직접 시도
       var klat2 = getLatex(node);
@@ -245,9 +309,17 @@
     if (node.classList && node.classList.contains('katex')) {
       if (node.closest && node.closest('.katex-display')) return '';
       var lat2 = getLatex(node);
-      if (lat2) return '$' + lat2 + '$';
+      if (lat2) {
+        var lat2t = lat2.trim();
+        // 순수 한국어 또는 한국어+수식기호 없는 혼합 → 텍스트
+        if (/^[가-힣㄰-㆏\s.,!?:;()\[\]\-·]+$/.test(lat2t)) return lat2t;
+        if (isKoreanHeavyMath(lat2t)) return lat2t;
+        // 순수 영어 단어들 (LaTeX 명령·수식 기호 없음) → 텍스트 (Gemini가 영문 설명을 .katex로 감싸는 경우)
+        if (/^[A-Za-z][A-Za-z0-9\s,.\-()]+$/.test(lat2t) && !/\\[a-zA-Z]/.test(lat2t) && !/[_^{}=<>]/.test(lat2t)) return lat2t;
+        return '$' + lat2t + '$';
+      }
       // 폴백: 유니코드 텍스트 (최소한 읽을 수 있게)
-      return (node.textContent || '').replace(/\s+/g, '').trim();
+      return (node.textContent || '').replace(/\s+/g, ' ').trim();
     }
     // MathJax (Gemini 등)
     if (tag === 'mjx-container') {
