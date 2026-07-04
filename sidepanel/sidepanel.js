@@ -106,12 +106,52 @@
 
   function extractMdTitle(text) {
     if (!text) return '';
-    var m = text.match(/^#\s+(.+)/m);
-    return m ? m[1].replace(/[*_`]/g, '').trim() : '';
+    // H1 ~ H6 헤딩 우선
+    var m = text.match(/^#{1,6}\s+(.+)/m);
+    if (m) return m[1].replace(/[*_`]/g, '').trim();
+    // 헤딩 없으면 첫 번째 비어있지 않은 줄
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i]
+        .replace(/^[>\-*+\d.]+\s*/, '')   // 인용·리스트 기호 제거
+        .replace(/[*_`~]/g, '')            // 강조 기호 제거
+        .replace(/\$\$?[\s\S]*?\$\$?/g, '') // 수식 제거
+        .trim();
+      if (line) return line.slice(0, 60);
+    }
+    return 'output';
   }
 
   function sanitizeFilename(name) {
     return (name || '').replace(/[\\/:*?"<>|\t\n\r]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 100) || 'output';
+  }
+
+  // 수식 sentinel 보호 — marked가 $...$·\[...\] 내 _·*·\ 를 마크다운으로 깨지 않도록
+  function mdProtectMath(text) {
+    var phs = [];
+    function add(latex, block) {
+      var i = phs.length;
+      phs.push({ latex: latex, block: block });
+      return 'MDPREVMATHX' + i + 'XEND';
+    }
+    var fences = [];
+    var masked = text.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, function (m) {
+      var i = fences.length; fences.push(m); return 'MDPREVFENCEX' + i + 'XEND';
+    });
+    masked = masked.replace(/\$\$([\s\S]+?)\$\$/g, function (_m, b) { return add(b, true); });
+    masked = masked.replace(/\\\[([\s\S]+?)\\\]/g, function (_m, b) { return add(b, true); });
+    masked = masked.replace(/\\\(([\s\S]+?)\\\)/g, function (_m, b) { return add(b, false); });
+    masked = masked.replace(/(^|[^\\$])\$([^\$\n]+?)\$(?!\d)/g, function (m, pre, b) { return pre + add(b, false); });
+    masked = masked.replace(/MDPREVFENCEX(\d+)XEND/g, function (_m, i) { return fences[+i]; });
+    return { md: masked, phs: phs };
+  }
+
+  function mdRestoreMath(html, phs) {
+    return html.replace(/MDPREVMATHX(\d+)XEND/g, function (_m, i) {
+      var ph = phs[+i];
+      if (!ph) return _m;
+      return ph.block ? ('$$' + ph.latex + '$$') : ('$' + ph.latex + '$');
+    });
   }
 
   // 마크다운 → A4 미리보기
@@ -121,7 +161,11 @@
       return;
     }
     try {
-      var html = window.marked.parse(mdText);
+      var protectedRes = mdProtectMath(mdText);
+      var html = window.marked.parse(protectedRes.md, { gfm: true, breaks: false });
+      html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+      html = mdRestoreMath(html, protectedRes.phs);
+      html = html.replace(/&#36;/g, '$');
       previewContent.innerHTML = html;
       if (window.renderMathInElement) {
         try {
@@ -132,7 +176,9 @@
               { left: '\\(', right: '\\)', display: false },
               { left: '\\[', right: '\\]', display: true }
             ],
-            throwOnError: false
+            throwOnError: false,
+            errorColor: '#c0392b',
+            ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
           });
         } catch (e) { /* KaTeX 오프라인 시 조용히 실패 */ }
       }
@@ -170,7 +216,7 @@
         var customName = fileNameInput ? fileNameInput.value.trim() : '';
         var stem = customName
           ? sanitizeFilename(customName)
-          : extractMdTitle(md) || 'report';
+          : sanitizeFilename(extractMdTitle(md));
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
@@ -210,8 +256,7 @@
     setStatus('준비됨: ' + preview + (md.length > 60 ? '…' : ''), '');
     downloadBtn.disabled = false;
     if (fileNameInput && !fileNameInput.value.trim()) {
-      var autoTitle = extractMdTitle(md);
-      if (autoTitle) fileNameInput.value = autoTitle;
+      fileNameInput.value = extractMdTitle(md);
     }
     renderPreview(md);
   }
