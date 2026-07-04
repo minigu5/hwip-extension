@@ -1,5 +1,26 @@
 'use strict';
 
+// 팝업이 열리는 순간 hwpxReportMd가 있으면 사이드패널로 자동 전환
+if (chrome.sidePanel) {
+  chrome.storage.local.get('hwpxReportMd', function (data) {
+    if (!data || !data.hwpxReportMd) return;
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+      var tabId = tabs && tabs[0] && tabs[0].id;
+      if (!tabId) return;
+      chrome.sidePanel.setOptions(
+        { tabId: tabId, path: 'sidepanel/sidepanel.html', enabled: true },
+        function () {
+          if (chrome.runtime.lastError) return;
+          chrome.sidePanel.open({ tabId: tabId }, function () {
+            void chrome.runtime.lastError;
+            window.close();
+          });
+        }
+      );
+    });
+  });
+}
+
 /* 팝업: 수동 LaTeX 입력 → hwip.vercel.app API → 출력 → 복사. */
 (function () {
   var input = document.getElementById('input');

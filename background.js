@@ -103,52 +103,60 @@ chrome.permissions.onAdded.addListener(function (perms) {
 });
 chrome.permissions.onRemoved.addListener(function () { syncDynamicScripts(); });
 
-// 보고서 변환 팝업 윈도우 ID 추적 (단일 팝업 보장)
-var reportPopupId = null;
-
-chrome.windows.onRemoved.addListener(function (windowId) {
-  if (windowId === reportPopupId) reportPopupId = null;
-});
-
-// popup이 살아있다면 활성화 완료를 알 수 있도록 메시지도 받아 처리.
-chrome.runtime.onMessage.addListener(function (msg, _sender, sendResponse) {
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === 'sync-scripts') {
     syncDynamicScripts(function () { sendResponse({ ok: true }); });
-    return true; // 비동기 응답
+    return true;
   }
-  // 보고서 → HWPX 팝업 창 열기 (단일 팝업: 이미 열려 있으면 reload 후 focus)
+  // 사이드패널 로드 완료 → 대기 중인 md 전달
+  if (msg && msg.type === 'sidepanel-ready') {
+    chrome.storage.local.get('hwpxReportMd', function (data) {
+      if (data && data.hwpxReportMd) {
+        var pendingMd = data.hwpxReportMd;
+        chrome.storage.local.remove('hwpxReportMd');
+        sendResponse({ md: pendingMd });
+      } else {
+        sendResponse({});
+      }
+    });
+    return true;
+  }
+  // 보고서 → HWPX 사이드패널 열기
   if (msg && msg.type === 'open-report-popup') {
-    var popupUrl = chrome.runtime.getURL('convert/convert.html');
-
-    function openNew() {
-      chrome.windows.create(
-        { url: popupUrl, type: 'popup', width: 400, height: 340 },
-        function (win) {
-          reportPopupId = win ? win.id : null;
+    var tabId = sender && sender.tab && sender.tab.id;
+    if (tabId && chrome.sidePanel) {
+      chrome.sidePanel.setOptions({
+        tabId: tabId,
+        path: 'sidepanel/sidepanel.html',
+        enabled: true
+      }, function () {
+        if (chrome.runtime.lastError) {
+          console.error('[휩] setOptions 오류:', chrome.runtime.lastError.message);
           sendResponse({ ok: true });
+          return;
         }
-      );
-    }
-
-    if (reportPopupId !== null) {
-      chrome.windows.get(reportPopupId, function (win) {
-        if (chrome.runtime.lastError || !win) {
-          reportPopupId = null;
-          openNew();
-        } else {
-          // 기존 팝업 reload → 새 storage 데이터 반영 후 포커스
-          chrome.tabs.query({ windowId: reportPopupId }, function (tabs) {
-            if (tabs && tabs[0]) chrome.tabs.reload(tabs[0].id);
-            chrome.windows.update(reportPopupId, { focused: true }, function () {
-              sendResponse({ ok: true });
-            });
-          });
-        }
+        chrome.sidePanel.open({ tabId: tabId }, function () {
+          if (chrome.runtime.lastError) {
+            console.error('[휩] sidePanel.open 오류:', chrome.runtime.lastError.message);
+            // Fallback: 팝업 열기 (Chrome 127+에서 service worker 지원)
+            if (chrome.action && chrome.action.openPopup) {
+              chrome.tabs.get(tabId, function (tab) {
+                if (!chrome.runtime.lastError && tab) {
+                  chrome.action.openPopup({ windowId: tab.windowId }, function () {
+                    void chrome.runtime.lastError;
+                  });
+                }
+              });
+            }
+          }
+          sendResponse({ ok: true });
+        });
       });
     } else {
-      openNew();
+      console.warn('[휩] sidePanel API 없음 또는 tabId 없음', { tabId: tabId, hasSidePanel: !!chrome.sidePanel });
+      sendResponse({ ok: true });
     }
-    return true; // 비동기 응답
+    return true;
   }
   // content script(파일/사이트)가 자신의 raw 소스(예: .md 원문)를 읽어달라고 요청.
   // 컨텐츠 스크립트는 file:// 동일 출처 fetch가 막혀 있어 background를 거친다.

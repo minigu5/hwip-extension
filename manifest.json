@@ -9,8 +9,14 @@
     "scripting",
     "activeTab",
     "storage",
-    "windows"
+    "sidePanel"
   ],
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; object-src 'self'"
+  },
   "web_accessible_resources": [
     {
       "resources": ["templates/blank.hwpx"],

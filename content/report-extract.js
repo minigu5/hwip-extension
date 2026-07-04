@@ -464,6 +464,8 @@
     btn.addEventListener('click', function (e) {
       e.preventDefault();
       e.stopPropagation();
+      // 확장 context 무효화(재로드) 시 chrome API 접근 차단
+      try { void chrome.runtime.id; } catch (ex) { return; }
       btn.textContent = '추출 중…';
       btn.disabled = true;
 
@@ -508,6 +510,8 @@
   scan();
   var scanTimer = null;
   var observer = new MutationObserver(function () {
+    // 확장 context 무효화(재로드) 시 observer 정지
+    try { void chrome.runtime.id; } catch (e) { observer.disconnect(); return; }
     clearTimeout(scanTimer);
     scanTimer = setTimeout(scan, 600);
   });
