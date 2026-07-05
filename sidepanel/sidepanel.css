@@ -103,6 +103,9 @@ select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
   color: var(--muted);
   line-height: 1.4;
 }
+.status:empty {
+  display: none;
+}
 
 .status.error { color: #c0392b; background: rgba(192,57,43,0.08); }
 .status.success { color: var(--green); background: rgba(30,158,90,0.08); }

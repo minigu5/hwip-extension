@@ -100,8 +100,14 @@
     });
   }
 
+  function applyPreviewFont() {
+    var family = fontFamilySel.value || '함초롬바탕';
+    previewContent.style.fontFamily = '"' + family + '", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+  }
+
   fontFamilySel.addEventListener('change', function () {
     chrome.storage.local.set({ 'mh.ext.font': fontFamilySel.value });
+    applyPreviewFont();
   });
 
   function extractMdTitle(text) {
@@ -124,6 +130,21 @@
 
   function sanitizeFilename(name) {
     return (name || '').replace(/[\\/:*?"<>|\t\n\r]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 100) || 'output';
+  }
+
+  // **bold**한글처럼 닫는 ** 바로 뒤에 CJK 문자가 붙으면 CommonMark가 닫힘 마커로
+  // 인정하지 않아 marked가 bold를 무시함. 닫는 ** 뒤에 공백을 삽입해 보정.
+  var CJK_CLASS = '[\\uAC00-\\uD7AF\\u3130-\\u318F\\u4E00-\\u9FFF\\u3040-\\u309F\\u30A0-\\u30FF]';
+  function fixCjkEmphasis(text) {
+    text = text.replace(
+      new RegExp('\\*\\*([^*\\n]+?)\\*\\*(?=' + CJK_CLASS + ')', 'g'),
+      function (_, body) { return '**' + body + '** '; }
+    );
+    text = text.replace(
+      new RegExp('(^|[^*\\\\])\\*([^*\\n\\s](?:[^*\\n]*[^*\\n\\s])?)\\*(?=' + CJK_CLASS + ')', 'g'),
+      function (_, pre, body) { return pre + '*' + body + '* '; }
+    );
+    return text;
   }
 
   // 수식 sentinel 보호 — marked가 $...$·\[...\] 내 _·*·\ 를 마크다운으로 깨지 않도록
@@ -161,12 +182,13 @@
       return;
     }
     try {
-      var protectedRes = mdProtectMath(mdText);
+      var protectedRes = mdProtectMath(fixCjkEmphasis(mdText));
       var html = window.marked.parse(protectedRes.md, { gfm: true, breaks: false });
       html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
       html = mdRestoreMath(html, protectedRes.phs);
       html = html.replace(/&#36;/g, '$');
       previewContent.innerHTML = html;
+      applyPreviewFont();
       if (window.renderMathInElement) {
         try {
           renderMathInElement(previewContent, {
@@ -252,8 +274,7 @@
 
   function applyMd(newMd) {
     md = newMd;
-    var preview = md.slice(0, 60).replace(/\n/g, ' ');
-    setStatus('준비됨: ' + preview + (md.length > 60 ? '…' : ''), '');
+    setStatus('', '');
     downloadBtn.disabled = false;
     if (fileNameInput && !fileNameInput.value.trim()) {
       fileNameInput.value = extractMdTitle(md);
@@ -308,6 +329,10 @@
       });
     });
   }
+
+  window.addEventListener('pagehide', function () {
+    chrome.storage.session.remove('panelTabId');
+  });
 
   init();
 })();

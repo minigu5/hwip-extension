@@ -92,6 +92,26 @@ syncDynamicScripts();
 chrome.runtime.onInstalled.addListener(function () { syncDynamicScripts(); });
 chrome.runtime.onStartup.addListener(function () { syncDynamicScripts(); });
 
+chrome.tabs.onActivated.addListener(function (activeInfo) {
+  chrome.storage.session.get('panelTabId', function (data) {
+    var storedId = data && data.panelTabId;
+    if (!chrome.sidePanel) return;
+    if (chrome.sidePanel.close) {
+      // Chrome 126+: window 레벨로 사이드패널 직접 닫기
+      chrome.sidePanel.close({ windowId: activeInfo.windowId }, function () {
+        void chrome.runtime.lastError;
+        chrome.storage.session.remove('panelTabId');
+      });
+    } else if (storedId && activeInfo.tabId !== storedId) {
+      // 구버전 fallback
+      chrome.storage.session.remove('panelTabId');
+      chrome.sidePanel.setOptions({ tabId: storedId, enabled: false }, function () {
+        void chrome.runtime.lastError;
+      });
+    }
+  });
+});
+
 chrome.permissions.onAdded.addListener(function (perms) {
   // 1) 다음 로드부터 자동 주입되도록 동적 등록 동기화
   syncDynamicScripts(function () {
@@ -125,6 +145,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === 'open-report-popup') {
     var tabId = sender && sender.tab && sender.tab.id;
     if (tabId && chrome.sidePanel) {
+      chrome.storage.session.set({ panelTabId: tabId });
       chrome.sidePanel.setOptions({
         tabId: tabId,
         path: 'sidepanel/sidepanel.html',
