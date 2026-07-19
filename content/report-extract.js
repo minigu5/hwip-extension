@@ -30,7 +30,8 @@
     '.font-claude-response',                             // Claude.ai
     '.model-response-text',                             // Gemini
     'model-response .markdown',                         // Gemini (커스텀 엘리먼트 내부)
-    '[data-role="model"] .markdown',                    // AI Studio
+    '[data-role="model"] .markdown',                    // AI Studio (구버전)
+    'ms-cmark-node',                                    // AI Studio (신버전)
     '.prose.dark\\:prose-invert',                       // Grok, Perplexity
     '[data-role="assistant"] .prose',
     '.ai-message .prose',
@@ -243,6 +244,47 @@
     return s.replace(/\n{3,}/g, '\n\n');
   }
 
+  // AI Studio(Angular) 는 <ul><ms-cmark-node><li>...</li></ms-cmark-node></ul> 처럼
+  // 재귀 렌더러가 블록 요소마다 래퍼(예: ms-cmark-node)를 한 겹 더 씌운다.
+  // node 부터 시작해 "엘리먼트 자식이 정확히 1개뿐인" 래퍼를 계속 벗겨 실제 태그를 찾는다.
+  function unwrapSingleChildElement(node) {
+    var cur = node;
+    while (cur && cur.nodeType === 1) {
+      var elChild = null, count = 0, hasText = false;
+      for (var i = 0; i < cur.childNodes.length; i++) {
+        var c = cur.childNodes[i];
+        if (c.nodeType === 1) { elChild = c; count++; }
+        else if (c.nodeType === 3 && (c.textContent || '').trim()) hasText = true;
+      }
+      if (hasText || count !== 1) return cur;
+      cur = elChild;
+    }
+    return cur;
+  }
+
+  // listEl 의 직계 <li> 들을 찾는다 — 래퍼(ms-cmark-node 등)에 감싸져 있어도 통과한다.
+  // 단, 다른 ul/ol 안에 중첩된 li(하위 리스트 항목)는 제외한다.
+  function directListItems(listEl) {
+    var all = listEl.querySelectorAll('li');
+    var out = [];
+    for (var i = 0; i < all.length; i++) {
+      var li = all[i];
+      var ancestor = li.parentElement;
+      while (ancestor && ancestor !== listEl && ancestor.tagName !== 'UL' && ancestor.tagName !== 'OL') {
+        ancestor = ancestor.parentElement;
+      }
+      if (ancestor === listEl) out.push(li);
+    }
+    return out;
+  }
+
+  // node(또는 그 래퍼)가 감싸고 있는 ul/ol 을 찾는다. 아니면 null.
+  function findWrappedList(node) {
+    var real = unwrapSingleChildElement(node);
+    if (real && real.nodeType === 1 && (real.tagName === 'UL' || real.tagName === 'OL')) return real;
+    return null;
+  }
+
   function childrenMd(node) {
     var out = '';
     for (var i = 0; i < node.childNodes.length; i++) {
@@ -265,7 +307,12 @@
       } else if (c.nodeType === 1 && c.tagName === 'INPUT') {
         // skip checkbox
       } else {
-        direct += nodeToMd(c);
+        var wrapped = c.nodeType === 1 ? findWrappedList(c) : null;
+        if (wrapped) {
+          nested += '\n' + listToMd(wrapped, wrapped.tagName === 'OL', 1);
+        } else {
+          direct += nodeToMd(c);
+        }
       }
     }
     return bullet + direct.trim() + nested;
@@ -275,11 +322,9 @@
     depth = depth || 0;
     var indent = '  '.repeat(depth);
     var lines = [];
-    var liEls = listEl.children;
+    var liEls = directListItems(listEl);
     for (var i = 0; i < liEls.length; i++) {
-      if (liEls[i].tagName === 'LI') {
-        lines.push(indent + listItemMd(liEls[i], ordered, i));
-      }
+      lines.push(indent + listItemMd(liEls[i], ordered, i));
     }
     return lines.join('\n');
   }
@@ -313,6 +358,15 @@
         tag === 'nav' || tag === 'header' || tag === 'footer') return '';
 
     // ── 수식 ────────────────────────────────────────────────────
+    // AI Studio: ms-katex > pre > code.rendered > .katex-display > .katex
+    // pre/code 태그가 안쪽에 있어 아래 일반 pre 분기(코드블록화)보다 먼저 가로채야 한다.
+    if (tag === 'ms-katex') {
+      var mkKatex = node.querySelector('.katex');
+      var mkLat = mkKatex ? getLatex(mkKatex) : null;
+      if (!mkLat) return '';
+      var mkIsBlock = node.classList && node.classList.contains('display');
+      return mkIsBlock ? '\n\n$$' + mkLat + '$$\n\n' : filterLatexInline(mkLat, mkKatex);
+    }
     // Gemini: DIV.math-block (블록 수식) — data-math 직접 사용
     if (node.classList && node.classList.contains('math-block')) {
       var gdm = node.getAttribute('data-math');
@@ -435,10 +489,67 @@
       } catch (e) {}
     }
     // 다른 요소의 조상인 요소 제거 — 셀렉터가 조상·자손 쌍을 둘 다 잡을 때 중복 버튼 방지
+    // 단, ms-cmark-node(AI Studio)는 문단·강조마다 재귀적으로 중첩되는 구조라
+    // 위 규칙을 그대로 적용하면 전체 응답을 담은 최상위가 걸러지고 텍스트 몇 글자뿐인
+    // 최말단 leaf만 남는다 → isReport() 실패 → 버튼 미표시. 이 태그만 반대로 최상위만 남긴다.
     return results.filter(function (el) {
+      if (el.tagName === 'MS-CMARK-NODE') {
+        // AI Studio: 사용자가 입력한 프롬프트도 ms-cmark-node 로 렌더링되므로
+        // 실수로 버튼이 붙지 않게 사용자 turn 은 애초에 제외한다.
+        if (el.closest && el.closest('.chat-turn-container.user')) return false;
+        return !results.some(function (other) {
+          return other !== el && other.tagName === 'MS-CMARK-NODE' && other.contains(el);
+        });
+      }
       return !results.some(function (other) {
         return other !== el && el.contains(other);
       });
+    });
+  }
+
+  // ── AI Studio: "Copy as markdown" 메뉴로 원본 markdown 확보 ──────
+  //
+  // domToMd() 는 렌더링된 DOM을 역으로 markdown 으로 재구성하는 방식이라
+  // Angular 컴포넌트 래핑(ms-cmark-node 재귀 중첩), KaTeX 렌더 실패 등 화면 표시
+  // 디테일에 취약하다. AI Studio 는 각 turn 의 "더보기(⋮)" 메뉴에 원본 markdown을
+  // 그대로 클립보드로 복사해주는 "Copy as markdown" 항목을 제공하므로, 있으면
+  // 그걸 우선 사용하고 실패했을 때만 domToMd() 로 폴백한다.
+  function tryAiStudioCopyMarkdown(el) {
+    if (location.hostname !== 'aistudio.google.com') return Promise.resolve(null);
+    var turn = el.closest('ms-chat-turn');
+    if (!turn) return Promise.resolve(null);
+    var optionsBtn = turn.querySelector('ms-chat-turn-options button[aria-haspopup="menu"]');
+    if (!optionsBtn) return Promise.resolve(null);
+
+    return new Promise(function (resolve) {
+      var done = false;
+      var observer;
+      var timer = setTimeout(function () {
+        if (done) return;
+        done = true;
+        if (observer) observer.disconnect();
+        resolve(null);
+      }, 3000);
+
+      observer = new MutationObserver(function () {
+        if (done) return;
+        var copyItem = document.querySelector('.copy-markdown-button');
+        if (!copyItem) return;
+        done = true;
+        clearTimeout(timer);
+        observer.disconnect();
+        var copyBtn = copyItem.closest('button');
+        if (!copyBtn) { resolve(null); return; }
+        copyBtn.click();
+        // 클립보드 쓰기가 비동기라 약간의 여유를 두고 읽는다.
+        setTimeout(function () {
+          navigator.clipboard.readText().then(function (text) {
+            resolve(text || null);
+          }).catch(function () { resolve(null); });
+        }, 150);
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+      optionsBtn.click();
     });
   }
 
@@ -469,27 +580,31 @@
       btn.textContent = '추출 중…';
       btn.disabled = true;
 
-      var md = '';
-      try { md = domToMd(el); } catch (err) { md = ''; }
+      tryAiStudioCopyMarkdown(el).catch(function () { return null; }).then(function (copiedMd) {
+        var md = copiedMd && copiedMd.trim() ? copiedMd : '';
+        if (!md) {
+          try { md = domToMd(el); } catch (err) { md = ''; }
+        }
 
-      if (!md || !md.trim()) {
-        btn.textContent = '추출 실패';
-        btn.disabled = false;
-        setTimeout(function () { btn.textContent = 'hwpx파일로'; }, 2000);
-        return;
-      }
-
-      chrome.storage.local.set({ hwpxReportMd: md.trim() }, function () {
-        if (chrome.runtime.lastError) {
-          btn.textContent = '저장 실패';
+        if (!md || !md.trim()) {
+          btn.textContent = '추출 실패';
           btn.disabled = false;
           setTimeout(function () { btn.textContent = 'hwpx파일로'; }, 2000);
           return;
         }
-        chrome.runtime.sendMessage({ type: 'open-report-popup' }, function () {
-          void chrome.runtime.lastError;
-          btn.textContent = 'hwpx파일로';
-          btn.disabled = false;
+
+        chrome.storage.local.set({ hwpxReportMd: md.trim() }, function () {
+          if (chrome.runtime.lastError) {
+            btn.textContent = '저장 실패';
+            btn.disabled = false;
+            setTimeout(function () { btn.textContent = 'hwpx파일로'; }, 2000);
+            return;
+          }
+          chrome.runtime.sendMessage({ type: 'open-report-popup' }, function () {
+            void chrome.runtime.lastError;
+            btn.textContent = 'hwpx파일로';
+            btn.disabled = false;
+          });
         });
       });
     });
