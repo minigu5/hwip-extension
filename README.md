@@ -6,6 +6,11 @@ ChatGPT·Claude 답변의 수식 위에 마우스를 올리면 오른쪽 아래�
 클릭 한 번으로 한글(HWP) 수식 편집기 문법으로 변환해 클립보드에 복사한다.
 확장 아이콘을 누르면 LaTeX를 직접 입력해 변환하는 팝업도 쓸 수 있다.
 
+헤딩 2개 이상이거나 2000자를 넘는 **긴 AI 답변(보고서)**에는 별도로 **"HWPX로 변환"** 버튼이 떠서,
+클릭하면 사이드패널이 열려 글꼴·글자크기·파일명을 설정하고 A4 미리보기(KaTeX 수식 렌더 포함)를
+확인한 뒤 `.hwpx` 파일로 바로 다운로드할 수 있다. 두 기능은 팝업 설정 화면에서 각각
+켜고 끌 수 있다("수식 변환 자동 감지" / "ai보고서 자동 감지").
+
 ## 왜 확장이 더 정확한가
 
 ChatGPT·Claude는 수식을 **KaTeX**로 렌더링하며, 원본 LaTeX를 DOM의
@@ -19,6 +24,19 @@ ChatGPT·Claude는 수식을 **KaTeX**로 렌더링하며, 원본 LaTeX를 DOM�
   - KaTeX + annotation 방식 (ChatGPT·Claude·Grok 등): `<annotation encoding="application/x-tex">` 에서 직접 추출.
   - Gemini: `<annotation>` 없이 부모 요소의 `data-math` 속성에 원본 LaTeX 저장 → 동일하게 호버 버튼으로 추출.
 
+## AI 보고서 → HWPX 문서 변환
+
+`content/report-extract.js`가 어시스턴트 답변 컨테이너(`CONTENT_SELECTORS`, 사이트별 셀렉터)를 감시하다가
+헤딩(`h1~h4`) 2개 이상 또는 본문 2000자 이상이면 "보고서"로 판단해 **"HWPX로 변환"** 버튼을 띄운다.
+(ChatGPT 캔버스가 열린 메시지는 중복 방지를 위해 버튼을 띄우지 않는다.)
+
+버튼 클릭 → `open-report-popup` 메시지를 `background.js`로 보냄 → `chrome.sidePanel`로
+`sidepanel/sidepanel.html`을 현재 탭에 연다 → 사이드패널이 `sidepanel-ready` 메시지로 대기 중인
+마크다운을 받아 `lib/md-to-hwpx.js`(= 루트 `src/md-to-hwpx.js` 사본)로 변환한다.
+사이드패널에서 글꼴(내 PC 글꼴 로드 지원)·글자크기·파일명을 조정하며 A4 미리보기(KaTeX 렌더 포함)로
+확인 후 다운로드한다. `convert/` 폴더는 사이드패널 도입 전의 팝업 UI로 현재 manifest·background.js
+어디에서도 참조되지 않는 미사용 코드다.
+
 ## 설치 (개발자 모드)
 
 1. 크롬에서 `chrome://extensions` 접속
@@ -28,20 +46,29 @@ ChatGPT·Claude는 수식을 **KaTeX**로 렌더링하며, 원본 LaTeX를 DOM�
 ## 구조
 
 ```
-manifest.json          MV3 매니페스트 (ChatGPT·Claude에 content script 주입)
-lib/converter.js       ⚠️ src/converter.js 의 사본 (직접 수정 금지)
-content/content.js     호버 감지 + LaTeX 추출 + 변환·복사 (플로팅 버튼)
-content/content.css    플로팅 버튼 스타일
-popup/                 수동 입력 UI (LaTeX → 변환 → 복사)
-icons/                 16/48/128 아이콘 (플레이스홀더)
+manifest.json               MV3 매니페스트 (AI 사이트에 content script 주입, side_panel 등록)
+background.js               사이드패널 열기/닫기, 동적 content script 등록·권한 동기화
+lib/converter.js            ⚠️ src/converter.js 의 사본 (직접 수정 금지)
+lib/md-to-hwpx.js           ⚠️ src/md-to-hwpx.js 의 사본 (직접 수정 금지)
+content/content.js          호버 감지 + LaTeX 추출 + 변환·복사 (플로팅 "HWP 복사" 버튼)
+content/content-forced.js   자동 지원 목록 밖 페이지에 수동 주입되는 버전
+content/content.css         플로팅 버튼 스타일
+content/report-extract.js   AI 보고서 감지 + "HWPX로 변환" 버튼 삽입
+popup/                      확장 아이콘 팝업 — 수동 LaTeX 입력 UI + 설정(자동 감지 토글 2종) + 페이지 상태
+sidepanel/                  "HWPX로 변환" 클릭 시 열리는 사이드패널 — 글꼴/크기/파일명 + A4 미리보기 + 다운로드
+convert/                    (미사용) 사이드패널 도입 전 레거시 팝업 UI, manifest에서 참조 안 함
+templates/blank.hwpx        md-to-hwpx.js가 기반으로 쓰는 빈 HWPX 템플릿
+icons/                      16/48/128 아이콘
 ```
 
 ## 변환 로직 동기화
 
-`lib/converter.js`는 프로젝트 루트 `src/converter.js`의 **사본**이다. 원본을 고치면 루트에서:
+`lib/converter.js`·`lib/md-to-hwpx.js`는 프로젝트 루트 `src/converter.js`·`src/md-to-hwpx.js`의
+**사본**이다. `npm run sync:ext` 같은 자동 스크립트는 없다 — 원본을 고치면 루트에서 수동 복사한다:
 
 ```bash
-npm run sync:ext
+cp src/converter.js chrome-extension/lib/converter.js
+cp src/md-to-hwpx.js chrome-extension/lib/md-to-hwpx.js
 ```
 
 ## 지원 사이트
