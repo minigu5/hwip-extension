@@ -121,7 +121,8 @@
     if (fromFiber) return fromFiber;
 
     // 3) data 속성 — el부터 5단계 조상까지
-    var dataKeys = ['data-formula', 'data-math', 'data-latex', 'data-tex', 'data-expression', 'data-content'];
+    //    data-math-source: ChatGPT(role="math" 래퍼, KaTeX HTML 전용 렌더라 annotation 없음)
+    var dataKeys = ['data-formula', 'data-math', 'data-math-source', 'data-latex', 'data-tex', 'data-expression', 'data-content'];
     var cur = el;
     for (var d = 0; d < 5; d++) {
       for (var i = 0; i < dataKeys.length; i++) {

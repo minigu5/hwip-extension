@@ -26,9 +26,16 @@
 
   // 강제 적용 사이트면 셀렉터와 추출 경로를 확장한다(content-forced.js 가 먼저 세팅).
   var FORCED_MODE = !!window.__hwpForceFullCompat;
+  // 수식 위 어디에 올려도 잡히도록 원본 LaTeX 를 담은 래퍼까지 호버 대상에 포함.
+  // 디스플레이 수식은 좌우/상하 여백이 넓어 .katex 글리프를 정확히 안 짚으면 놓치므로
+  // 바깥 래퍼도 필요하다.
+  //  - .katex       : KaTeX 글리프 (모든 사이트 공통)
+  //  - [data-math]      : Gemini (span.math-inline / div.math-block)
+  //  - [data-math-source]  : ChatGPT (span[role="math"])
+  //  - ms-katex       : Google AI Studio (ms-katex.inline / ms-katex.display)
   var HOVER_SELECTOR = FORCED_MODE
-    ? '.katex, mjx-container, math'
-    : '.katex';
+    ? '.katex, mjx-container, math, [data-math], [data-math-source], ms-katex'
+    : '.katex, [data-math], [data-math-source], ms-katex';
 
   var API_URL = 'https://hwip.vercel.app/api/convert';
   var currentKatex = null;
@@ -47,14 +54,21 @@
   function hasAnnotation(el) {
     return !!(el && el.querySelector('annotation[encoding="application/x-tex"]'));
   }
-  // Gemini: .katex 부모 요소의 data-math 속성에 원본 LaTeX 저장
+  // 부모 요소에 원본 LaTeX 를 담아두는 사이트들:
+  //  - Gemini: data-math
+  //  - ChatGPT: data-math-source (role="math" 래퍼) — KaTeX 를 HTML 전용으로 렌더해
+  //    <annotation> 노드가 없으므로 이 속성이 유일한 원본 소스다.
   function closestDataMath(el) {
     var cur = el;
     while (cur) {
-      if (cur.getAttribute && cur.getAttribute('data-math')) return cur;
+      if (cur.getAttribute &&
+          (cur.getAttribute('data-math') || cur.getAttribute('data-math-source'))) return cur;
       cur = cur.parentElement;
     }
     return null;
+  }
+  function dataMathValue(el) {
+    return ((el.getAttribute('data-math') || el.getAttribute('data-math-source')) || '').trim();
   }
   // 강제 모드 또는 알려진 추출 경로가 있으면 true
   function hasExtractable(el) {
@@ -143,9 +157,9 @@
   }
 
   function extractLatex(el) {
-    // 1) Gemini: 부모 요소의 data-math 속성에 원본 LaTeX 저장
+    // 1) Gemini(data-math) / ChatGPT(data-math-source): 부모 요소에 원본 LaTeX 저장
     var dmEl = closestDataMath(el);
-    if (dmEl) return dmEl.getAttribute('data-math').trim();
+    if (dmEl) return dataMathValue(dmEl);
     // 2) KaTeX/MathJax 공통 — annotation 에 raw LaTeX
     var ann = el.querySelector('annotation[encoding="application/x-tex"]');
     if (ann && ann.textContent) return ann.textContent.trim();
