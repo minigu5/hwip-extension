@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "휩 - AI to 한글(HWP)",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "description": "AI 사이트 수식에 마우스 올리면 한글(HWP) 수식 문법으로 변환·복사. 긴 AI 보고서 답변은 감지해 HWPX 문서로 바로 변환합니다.",
   "permissions": [
     "clipboardWrite",
