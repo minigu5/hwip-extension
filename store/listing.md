@@ -10,39 +10,10 @@
 - 한국어: `AI 사이트 수식에 마우스 올리면 한글(HWP) 수식 문법으로 변환·복사. 긴 AI 보고서 답변은 감지해 HWPX 문서로 바로 변환합니다.`
 - English: `Hover over math on AI sites to copy it as HWP equation syntax. Turn long AI answers into HWPX documents in one click.`  ← `_locales/en` 에서 자동 반영됨
 
-## 자세한 설명 (한국어)
-```
-ChatGPT, Claude, Gemini 같은 AI가 알려준 수식을 한글(HWP)에 붙여넣으면 깨지나요?
-휩은 AI 답변 속 LaTeX 수식을 한글 수식 편집기 문법으로 바꿔 줍니다.
-
-■ 수식 호버 복사
-AI 답변의 수식 위에 마우스를 올리면 "HWP 복사" 버튼이 나타납니다. 한 번 클릭하면 한글 수식 편집기에 바로 붙여넣을 수 있는 형태로 변환해 클립보드에 복사합니다. 렌더된 화면을 긁어 복사할 때 사라지는 위·아래 첨자 정보도 원본 LaTeX에서 읽어 오므로 손실이 없습니다.
-
-■ 긴 답변 → HWPX 문서
-제목이 2개 이상이거나 긴 보고서형 답변 아래에 "hwpx파일로" 버튼이 나타납니다. 누르면 사이드패널이 열려 글꼴, 글자 크기, 파일명을 정하고 A4 미리보기(수식 렌더링 포함)를 확인한 뒤 .hwpx 파일로 다운로드할 수 있습니다. 제목·목록·표·코드 블록·수식 서식이 유지됩니다.
-
-■ 수동 변환 팝업
-확장 아이콘을 눌러 LaTeX를 직접 입력하면 한글 수식으로 자동 변환됩니다.
-
-■ 지원 사이트
-ChatGPT, Claude, Gemini, Google AI Studio, Perplexity, Grok, DeepSeek, Poe, Mistral 등. 목록에 없는 페이지는 확장 팝업의 "이 페이지에서 켜기"로 직접 활성화할 수 있습니다.
-
-■ 참고
-- 호버 복사와 보고서 변환은 팝업 설정에서 각각 켜고 끌 수 있습니다.
-- 웹 버전(붙여넣기·이미지 OCR·파일 변환)도 제공됩니다: https://hwip.vercel.app
-```
-
-## Detailed description (English)
-```
-Pasting math from ChatGPT, Claude or Gemini into HWP breaks it, because LaTeX and the HWP equation editor use different syntax. Hwip converts it for you.
-
-* Hover to copy: hover over any equation in an AI answer and click "Copy HWP" to copy it as HWP equation-editor syntax. The original LaTeX is read from the page, so sub/superscripts are never lost.
-* Long answers to HWPX: a button appears under report-style answers. Pick a font, size and file name, check an A4 preview (math rendered), and download a .hwpx document with headings, lists, tables, code blocks and equations preserved.
-* Manual popup: type LaTeX into the toolbar popup and get HWP equation syntax instantly.
-* Works on ChatGPT, Claude, Gemini, Google AI Studio, Perplexity, Grok, DeepSeek, Poe, Mistral and more. Enable any other page from the popup.
-
-Web version (paste, image OCR, file conversion): https://hwip.vercel.app
-```
+## 자세한 설명 (대시보드 "설명" 칸에 붙여넣을 텍스트)
+설명란은 마크다운이 아닌 일반 텍스트다. 아래 파일 내용을 **그대로 전체 선택·복사**해서 붙여넣는다.
+- 한국어(기본 언어): `store/description-ko.txt`
+- English(언어 추가 후 영어 칸): `store/description-en.txt`
 
 ## 카테고리 / 언어
 - 카테고리: 생산성 (Productivity)

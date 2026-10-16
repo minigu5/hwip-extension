@@ -1,0 +1,18 @@
+Pasting math from ChatGPT, Claude or Gemini into HWP breaks it, because LaTeX and the HWP equation editor use different syntax.
+Hwip converts it for you.
+
+[Hover to copy]
+Hover over an equation in an AI answer and a "Copy HWP" button appears. Click it and the equation is converted to HWP equation-editor syntax and copied to your clipboard, ready to paste. The original LaTeX is read from the page, so sub- and superscripts are never lost.
+
+[Long answers to HWPX]
+A "To HWPX" button appears under long, report-style answers. Pick a font, font size and file name in the side panel, check an A4 preview with the math rendered, and download a .hwpx document. Headings, lists, tables, code blocks and equations are preserved.
+
+[Type LaTeX directly]
+Click the toolbar icon, type LaTeX, and get HWP equation syntax instantly.
+
+[Where it works]
+It runs automatically on major AI chatbot sites with no setup. For pages that aren't supported automatically, use "Turn on for this page" in the popup.
+
+[Notes]
+• Equation copy and report conversion can each be switched off in the popup settings.
+• Web version (paste, image OCR, file conversion): https://hwip.vercel.app
