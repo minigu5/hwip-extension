@@ -1,6 +1,6 @@
 # 휩 - LaTeX → 한글(HWP) 수식 복사 — 크롬 확장
 
-[GitHub Repository (Separate)](https://github.com/minigu5/latex-to-hwp-extension)
+[GitHub Repository (Separate)](https://github.com/minigu5/latex-to-hwp-extension) · [Chrome 웹 스토어에서 설치](https://chromewebstore.google.com/detail/meahkfhlalnljlgllhmhmfdhpkknfncg)
 
 ChatGPT·Claude 답변의 수식 위에 마우스를 올리면 오른쪽 아래에 **"HWP 복사"** 버튼이 떠서,
 클릭 한 번으로 한글(HWP) 수식 편집기 문법으로 변환해 클립보드에 복사한다.
@@ -37,7 +37,11 @@ ChatGPT·Claude는 수식을 **KaTeX**로 렌더링하며, 원본 LaTeX를 DOM�
 확인 후 다운로드한다. `convert/` 폴더는 사이드패널 도입 전의 팝업 UI로 현재 manifest·background.js
 어디에서도 참조되지 않는 미사용 코드다.
 
-## 설치 (개발자 모드)
+## 설치
+
+**권장:** [Chrome 웹 스토어](https://chromewebstore.google.com/detail/meahkfhlalnljlgllhmhmfdhpkknfncg)에서 "Chrome에 추가"를 누르면 된다.
+
+### 개발자 모드로 설치 (소스에서 직접)
 
 1. 크롬에서 `chrome://extensions` 접속
 2. 우측 상단 **개발자 모드** 켜기
