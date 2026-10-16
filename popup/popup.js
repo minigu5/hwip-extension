@@ -1,5 +1,7 @@
 'use strict';
 
+var i18n = window.hwpT;
+
 // 팝업이 열리는 순간 hwpxReportMd가 있으면 사이드패널로 자동 전환
 if (chrome.sidePanel) {
   chrome.storage.local.get('hwpxReportMd', function (data) {
@@ -38,7 +40,7 @@ if (chrome.sidePanel) {
   if (siteLinkBtn) {
     siteLinkBtn.addEventListener('click', function (e) {
       e.preventDefault();
-      var url = 'https://latex-to-hwp.vercel.app/';
+      var url = 'https://hwip.vercel.app/';
       if (typeof chrome !== 'undefined' && chrome.tabs) {
         chrome.tabs.create({ url: url });
       } else {
@@ -86,7 +88,7 @@ if (chrome.sidePanel) {
   function render() {
     var latex = input.value.trim();
     if (!latex) { output.textContent = ''; return; }
-    output.textContent = '변환 중…';
+    output.textContent = i18n('converting');
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(function() {
       fetch(API_URL, {
@@ -96,7 +98,7 @@ if (chrome.sidePanel) {
       })
       .then(function(r) { return r.json(); })
       .then(function(data) { output.textContent = data.result || ''; })
-      .catch(function() { output.textContent = '변환 실패 (네트워크 오류)'; });
+      .catch(function() { output.textContent = i18n('convertFailedNetwork'); });
     }, 300);
   }
 
@@ -104,11 +106,11 @@ if (chrome.sidePanel) {
 
   copyBtn.addEventListener('click', function () {
     copyText(output.textContent, function () {
-      copyBtn.textContent = '복사됨!';
+      copyBtn.textContent = i18n('copied');
       copyBtn.classList.add('copied');
-      flashHint('클립보드에 복사됨 ✓');
+      flashHint(i18n('hintCopied'));
       setTimeout(function () {
-        copyBtn.textContent = '복사';
+        copyBtn.textContent = i18n('copy');
         copyBtn.classList.remove('copied');
       }, 1200);
     });
@@ -210,7 +212,7 @@ if (chrome.sidePanel) {
     else { guideNote.hidden = true; }
     if (opts.openUrl) {
       guideOpenBtn.hidden = false;
-      guideOpenBtn.textContent = opts.openLabel || '설정 페이지 열기';
+      guideOpenBtn.textContent = opts.openLabel || i18n('openSettingsPage');
       guideOpenBtn.onclick = function () { chrome.tabs.create({ url: opts.openUrl }); };
     } else {
       guideOpenBtn.hidden = true;
@@ -269,36 +271,36 @@ if (chrome.sidePanel) {
   // Chrome 내장 PDF 뷰어는 chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/
   // iframe 안에서 동작 — 확장 스크립트가 그 iframe엔 닿지 않는다. 페이지 자체
   // 활성화는 가능하나 PDF 내부 수식 자동 감지는 안 됨을 안내.
-  var PDF_NOTE = 'Chrome PDF 뷰어 내부는 격리된 iframe이라 PDF 안의 수식은 호버 감지가 안 됩니다. 텍스트를 선택해 복사한 뒤, 이 팝업 상단 입력창에 붙여넣어 변환하세요.';
+  var PDF_NOTE = i18n('pdfNote');
 
   // ── 활성화 흐름들 ──────────────────────────────────────────
   function requestPermissionAndActivate(tab, originPattern) {
     forceOnBtn.disabled = true;
-    forceOnBtn.textContent = '권한 요청 중…';
+    forceOnBtn.textContent = i18n('permRequesting');
     chrome.permissions.request({ origins: [originPattern] }, function (granted) {
       if (chrome.runtime.lastError || !granted) {
         var reason = (chrome.runtime.lastError && chrome.runtime.lastError.message)
-          || '권한이 거부되어 활성화할 수 없습니다.';
+          || i18n('permDenied');
         setStatus(reason, 'disabled');
         forceOnBtn.disabled = false;
-        forceOnBtn.textContent = '다시 시도';
+        forceOnBtn.textContent = i18n('retry');
         return;
       }
-      setStatus('활성화 중…', '');
-      forceOnBtn.textContent = '활성화 중…';
+      setStatus(i18n('activating'), '');
+      forceOnBtn.textContent = i18n('activating');
       var tries = 0;
       (function poll() {
         probeInjected(tab.id).then(function (ok) {
           if (ok) {
-            setStatus('✓ 이 페이지에서 활성화됨. 새로고침해도 유지됩니다.', 'supported');
+            setStatus(i18n('activatedPersist'), 'supported');
             forceOnBtn.hidden = true;
             return;
           }
           if (++tries < 8) { setTimeout(poll, 150); return; }
-          setStatus('✓ 권한 부여 완료. 새로고침하면 활성화됩니다.', 'supported');
+          setStatus(i18n('permGrantedReload'), 'supported');
           forceOnBtn.hidden = true;
         }, function () {
-          setStatus('✓ 권한 부여 완료. 새로고침하면 활성화됩니다.', 'supported');
+          setStatus(i18n('permGrantedReload'), 'supported');
           forceOnBtn.hidden = true;
         });
       })();
@@ -329,39 +331,39 @@ if (chrome.sidePanel) {
     var extId = chrome.runtime.id;
     var settingsUrl = 'chrome://extensions/?id=' + extId;
     showGuide({
-      title: '로컬 파일에서 켜려면 한 가지 설정이 필요합니다',
+      title: i18n('fileGuideTitle'),
       steps: [
-        '아래 <b>설정 페이지 열기</b> 버튼을 누르세요.',
-        '열린 페이지에서 <code>파일 URL에 대한 액세스 허용</code> 토글을 켜세요.',
-        '이 PDF/HTML 파일 탭으로 돌아와 새로고침하면 자동으로 활성화됩니다.'
+        i18n('fileGuideStep1'),
+        i18n('fileGuideStep2'),
+        i18n('fileGuideStep3')
       ],
-      note: '이 토글은 Chrome 정책상 사용자가 직접 켜야 합니다. 확장이 자동으로 켤 수 없습니다.',
+      note: i18n('fileGuideNote'),
       openUrl: settingsUrl,
-      openLabel: '설정 페이지 열기'
+      openLabel: i18n('openSettingsPage')
     });
-    setStatus('파일 URL 액세스 허용이 필요합니다.', 'disabled');
+    setStatus(i18n('fileAccessNeeded'), 'disabled');
     forceOnBtn.disabled = false;
-    forceOnBtn.textContent = '다시 시도';
+    forceOnBtn.textContent = i18n('retry');
   }
 
   function showInternalPageGuide(url) {
     var isPdfLike = /\.pdf/i.test(url || '');
     showGuide({
-      title: '이 페이지는 Chrome 보안 정책상 확장이 동작할 수 없습니다',
+      title: i18n('internalGuideTitle'),
       steps: isPdfLike ? [
-        '이 PDF를 컴퓨터에 <b>다운로드</b>하세요.',
-        '다운로드한 파일을 Chrome으로 열면 <code>file://</code> 주소가 됩니다.',
-        '그 페이지에서 다시 팝업을 열고 <b>이 페이지에서 켜기</b>를 누르세요. (필요 시 파일 URL 액세스 토글 안내가 한 번 더 뜹니다.)'
+        i18n('internalPdfStep1'),
+        i18n('internalPdfStep2'),
+        i18n('internalPdfStep3')
       ] : [
-        '<code>chrome://</code>, 다른 확장 페이지, Chrome 웹 스토어 등은 어떤 확장도 스크립트를 넣을 수 없도록 Chrome이 막아둔 영역입니다.',
-        '수식이 있는 일반 웹 페이지를 새 탭에서 여세요. 거기서 <b>이 페이지에서 켜기</b>가 동작합니다.',
-        '급할 땐 수식 LaTeX를 복사해 이 팝업 상단 입력창에 직접 붙여넣어 변환할 수 있습니다.'
+        i18n('internalStep1'),
+        i18n('internalStep2'),
+        i18n('internalStep3')
       ],
       note: isPdfLike
-        ? '브라우저 안에서 보이는 PDF는 내장 PDF 뷰어 확장이 격리된 iframe으로 렌더링합니다. 외부 확장이 그 안에 접근할 방법은 없습니다.'
+        ? i18n('internalPdfNote')
         : null
     });
-    setStatus('이 페이지에서는 사용할 수 없습니다.', 'disabled');
+    setStatus(i18n('unavailableHere'), 'disabled');
     forceOnBtn.hidden = true;
   }
 
@@ -372,48 +374,48 @@ if (chrome.sidePanel) {
     var kind = classify(url);
 
     if (kind === 'auto') {
-      setStatus('✓ 이 페이지는 자동으로 지원됩니다.', 'supported');
+      setStatus(i18n('autoSupported'), 'supported');
       forceOnBtn.hidden = true;
       return;
     }
 
     // web/file/internal/webstore/unknown — 일단 버튼은 항상 보여준다.
     if (kind === 'web') {
-      setStatus('현재 페이지 확인 중…', '');
+      setStatus(i18n('pageChecking'), '');
       forceOnBtn.hidden = true;
       probeInjected(tab.id).then(function (injected) {
         if (injected) {
-          setStatus('✓ 이 페이지에서 활성화됨. 수식 위에 마우스를 올려보세요.', 'supported');
+          setStatus(i18n('activatedHover'), 'supported');
           forceOnBtn.hidden = true;
         } else {
           setStatus(isPdfUrl(url)
-            ? 'PDF 페이지입니다 — 켜기 후에도 PDF 내부엔 접근 못 함을 참고하세요.'
-            : '자동 지원 목록에 없는 페이지입니다.', '');
+            ? i18n('pdfPageStatus')
+            : i18n('notInAutoList'), '');
           forceOnBtn.hidden = false;
-          forceOnBtn.textContent = '이 페이지에서 켜기';
+          forceOnBtn.textContent = i18n('enableOnPage');
           forceOnBtn.disabled = false;
         }
       }, function () {
-        setStatus('자동 지원 목록에 없는 페이지입니다.', '');
+        setStatus(i18n('notInAutoList'), '');
         forceOnBtn.hidden = false;
-        forceOnBtn.textContent = '이 페이지에서 켜기';
+        forceOnBtn.textContent = i18n('enableOnPage');
       });
 
       forceOnBtn.onclick = function () {
         if (!tab || !tab.id) return;
         var u;
         try { u = new URL(url); } catch (e) {
-          setStatus('활성화 실패: URL을 해석할 수 없습니다.', 'disabled');
+          setStatus(i18n('activateFailedUrl'), 'disabled');
           return;
         }
         var originPattern = u.protocol + '//' + u.hostname + '/*';
         requestPermissionAndActivate(tab, originPattern);
         if (isPdfUrl(url)) {
           showGuide({
-            title: 'PDF 페이지에서의 동작 안내',
+            title: i18n('pdfGuideTitle'),
             steps: [
-              '페이지 자체는 활성화됩니다.',
-              'PDF 안의 수식은 텍스트로 선택·복사한 뒤 위 입력창에 붙여넣어 변환하세요.'
+              i18n('pdfGuideStep1'),
+              i18n('pdfGuideStep2')
             ],
             note: PDF_NOTE
           });
@@ -424,16 +426,16 @@ if (chrome.sidePanel) {
 
     if (kind === 'file') {
       setStatus(isPdfUrl(url)
-        ? '로컬 PDF 파일입니다 — 켜려면 파일 URL 액세스가 필요할 수 있습니다.'
-        : '로컬 파일 페이지입니다.', '');
+        ? i18n('localPdfStatus')
+        : i18n('localFileStatus'), '');
       forceOnBtn.hidden = false;
-      forceOnBtn.textContent = '이 페이지에서 켜기';
+      forceOnBtn.textContent = i18n('enableOnPage');
       forceOnBtn.disabled = false;
       // 이미 주입돼 있는지 확인
       if (tab && tab.id) {
         probeInjected(tab.id).then(function (injected) {
           if (injected) {
-            setStatus('✓ 이 페이지에서 활성화됨.', 'supported');
+            setStatus(i18n('activatedShort'), 'supported');
             forceOnBtn.hidden = true;
           }
         }, function () { /* 무시 */ });
@@ -446,10 +448,10 @@ if (chrome.sidePanel) {
           setTimeout(function () {
             if (guidePanel.hidden) {
               showGuide({
-                title: '로컬 PDF에서의 동작 안내',
+                title: i18n('localPdfGuideTitle'),
                 steps: [
-                  '페이지 자체는 활성화됩니다.',
-                  'PDF 안의 수식은 텍스트로 선택·복사한 뒤 위 입력창에 붙여넣어 변환하세요.'
+                  i18n('pdfGuideStep1'),
+                  i18n('pdfGuideStep2')
                 ],
                 note: PDF_NOTE
               });
@@ -463,11 +465,11 @@ if (chrome.sidePanel) {
     if (kind === 'internal' || kind === 'webstore' || kind === 'unknown') {
       // 차단 페이지 — 버튼은 "활성화 방법 보기"로 바뀐다.
       setStatus(kind === 'webstore'
-        ? 'Chrome 웹 스토어에서는 사용할 수 없습니다.'
-        : '이 페이지에서는 사용할 수 없습니다.', 'disabled');
+        ? i18n('webstoreBlocked')
+        : i18n('unavailableHere'), 'disabled');
       forceOnBtn.hidden = false;
       forceOnBtn.disabled = false;
-      forceOnBtn.textContent = '활성화 방법 보기';
+      forceOnBtn.textContent = i18n('howToActivate');
       forceOnBtn.onclick = function () { showInternalPageGuide(url); };
       return;
     }

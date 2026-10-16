@@ -1,0 +1,39 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+*{box-sizing:border-box;margin:0;padding:0}html,body{width:1400px;height:560px;overflow:hidden}
+body{font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;color:#fff;position:relative;-webkit-font-smoothing:antialiased;
+ background:radial-gradient(760px 560px at 92% 50%,rgba(120,170,255,.55) 0%,rgba(120,170,255,0) 70%),linear-gradient(120deg,#2A63F0 0%,#2150D8 55%,#1A40B8 100%)}
+.logo{position:absolute;left:96px;top:92px;display:flex;align-items:center;gap:16px;font-size:30px;font-weight:800}
+.logo img{width:60px;height:60px;filter:drop-shadow(0 8px 18px rgba(8,30,110,.35))}
+.logo small{font-size:20px;font-weight:600;color:rgba(255,255,255,.72);margin-left:2px}
+h1{position:absolute;left:96px;top:186px;font-size:72px;line-height:1.14;font-weight:800;letter-spacing:-2.4px;word-break:keep-all}
+h1 em{font-style:normal;color:#BFD6FF}
+p.sub{position:absolute;left:98px;top:382px;font-size:25px;line-height:1.5;font-weight:600;color:rgba(255,255,255,.85);word-break:keep-all}
+.lbl{font-size:16px;font-weight:700;letter-spacing:.2px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.lbl i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.ai{position:absolute;left:770px;top:56px;width:540px;height:210px;background:#fff;border-radius:22px;padding:24px 30px;color:#0F1B3D;
+ box-shadow:0 30px 60px rgba(7,24,92,.38)}
+.ai .lbl{color:#5B6B8C}.ai .lbl i{background:#18A558}
+.ai .eq{font-size:40px;text-align:center;margin-top:-14px}
+.copy{position:absolute;right:-18px;bottom:-18px;background:#2F6DF6;color:#fff;font-weight:800;font-size:20px;padding:12px 22px;border-radius:12px;
+ box-shadow:0 10px 24px rgba(7,24,92,.45);border:2px solid #fff}
+.arrow{position:absolute;left:1016px;top:282px;width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800}
+.hwp{position:absolute;left:770px;top:346px;width:540px;height:158px;background:#0F1B3D;border-radius:22px;padding:24px 30px;
+ box-shadow:0 30px 60px rgba(7,24,92,.45);border:1px solid rgba(255,255,255,.12)}
+.hwp .lbl{color:rgba(255,255,255,.62)}.hwp .lbl i{background:#5B9BFF}
+.hwp code{display:block;font-family:'SF Mono',Menlo,monospace;font-size:24px;line-height:1.55;color:#E6EDFF;word-break:break-all}
+.hwp code b{color:#7FB0FF;font-weight:700}
+</style></head><body>
+<div class="logo"><img src="icon.svg">휩<small>AI to 한글(HWP)</small></div>
+<h1>AI가 쓴 수식,<br><em>한글</em>에 그대로</h1>
+<p class="sub">ChatGPT · Claude · Gemini 수식을 한글 수식 문법으로</p>
+
+<div class="ai"><div class="lbl"><i></i>AI 답변</div><div class="eq" id="eq"></div><div class="copy">HWP 복사</div></div>
+<div class="arrow">↓</div>
+<div class="hwp"><div class="lbl"><i></i>한글 수식 편집기에 붙여넣기</div>
+<code>{`-` b <b>plusminus</b> <b>sqrt</b> {b ^{2} `-` 4 a c}} <b>over</b> {2 a}</code></div>
+<script>katex.render("\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}", document.getElementById('eq'), {displayMode:true});</script>
+</body></html>

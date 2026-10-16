@@ -12,6 +12,12 @@
   if (window.__hwpReportExtractInjected) return;
   window.__hwpReportExtractInjected = true;
 
+  // 다국어: chrome.i18n 메시지, 실패하면 한국어 원문으로 폴백
+  function hwpMsg(key, fallback) {
+    try { var m = chrome.i18n.getMessage(key); if (m) return m; } catch (e) { /* noop */ }
+    return fallback;
+  }
+
   var storageApi = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync;
   if (storageApi) {
     chrome.storage.sync.get({ autoHwpxReport: true }, function (s) {
@@ -25,9 +31,13 @@
 
   // ── 사이트별 응답 컨텐츠 셀렉터 ──────────────────────────────
   var CONTENT_SELECTORS = [
+    '[data-assistant-markdown-root]',                    // ChatGPT (2026-10 DOM 개편 이후)
     '[data-message-author-role="assistant"] .markdown',  // ChatGPT
     '[data-message-author-role="assistant"] .prose',     // ChatGPT fallback
-    '.font-claude-response',                             // Claude.ai
+    '.font-claude-response',                             // Claude.ai (구버전)
+    '[data-perf-reply-text]',                            // Claude.ai (2026-10 DOM 개편 이후)
+    '.ds-assistant-message-main-content',                // DeepSeek
+    '[class*="Markdown_markdownContainer"]',             // Poe (CSS 모듈 해시 접두사)
     '.model-response-text',                             // Gemini
     'model-response .markdown',                         // Gemini (커스텀 엘리먼트 내부)
     '[data-role="model"] .markdown',                    // AI Studio (구버전)
@@ -48,11 +58,12 @@
   // 캔버스가 있는 메시지에는 버튼 표시하지 않음
   function hasCanvas(el) {
     var container = el.closest('[data-message-author-role="assistant"]') ||
+                    el.closest('[data-message-role="assistant"]') ||
                     el.closest('article') || el.parentElement;
     if (!container) return false;
     var selectors = [
       '[data-testid="canvas-turn-action-button"]',
-      '[data-testid*="canvas"]',
+      '[data-testid*="canvas"]:not([data-testid="canvas-trigger"])',  // Grok "N초동안 작업함" 칩 제외
       'button[aria-label*="anvas"]',
       '[class*="canvasTile"]',
       '[class*="canvas-tile"]',
@@ -176,6 +187,18 @@
     return '$' + latex + '$';
   }
 
+  // idx 위치 직전까지의 열린 중괄호 깊이 (이스케이프된 \{ \} 는 제외)
+  function braceDepthAt(s, idx) {
+    var depth = 0;
+    for (var i = 0; i < idx; i++) {
+      var ch = s.charAt(i);
+      if (ch === '\\') { i++; continue; }
+      if (ch === '{') depth++;
+      else if (ch === '}') depth--;
+    }
+    return depth;
+  }
+
   // \text{한국어...} 가 포함된 인라인 LaTeX를 텍스트·수식 조각으로 분리해 Markdown 반환.
   // 예: "\text{다음이 성립} dT = dP" → "다음이 성립 $dT = dP$"
   function splitMixedLatex(latex, fallbackNode) {
@@ -184,6 +207,9 @@
     var last = 0, m;
     re.lastIndex = 0;
     while ((m = re.exec(latex)) !== null) {
+      // 첨자·인자 안(중괄호 깊이 > 0)의 \text{...}는 분리하면 수식이 깨진다
+      // 예: \Delta S_{\text{전체}} → 통째로 수식으로 유지
+      if (braceDepthAt(latex, m.index) > 0) continue;
       var before = latex.slice(last, m.index).trim();
       if (before) parts.push({ t: 'math', v: before });
       var txt = m[1].trim();
@@ -193,6 +219,8 @@
     var after = latex.slice(last).trim();
     if (after) parts.push({ t: 'math', v: after });
     if (!parts.length) return (fallbackNode.textContent || '').replace(/\s+/g, ' ').trim();
+    // 최상위 \text 가 없었다면 분리 없이 원본 전체가 수식 하나
+    if (parts.length === 1 && parts[0].t === 'math') return '$' + latex.trim() + '$';
     return parts.map(function (p) {
       if (p.t === 'text') return p.v;
       // 수식 기호(역슬래시·첨자·등호·연산자·알파벳)가 없으면 텍스트로
@@ -570,15 +598,15 @@
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'hwp-report-btn';
-    btn.textContent = 'hwpx파일로';
-    btn.title = 'AI 응답을 HWPX 문서로 변환합니다';
+    btn.textContent = hwpMsg('btnToHwpx', 'hwpx파일로');
+    btn.title = hwpMsg('btnToHwpxTitle', 'AI 응답을 HWPX 문서로 변환합니다');
 
     btn.addEventListener('click', function (e) {
       e.preventDefault();
       e.stopPropagation();
       // 확장 context 무효화(재로드) 시 chrome API 접근 차단
       try { void chrome.runtime.id; } catch (ex) { return; }
-      btn.textContent = '추출 중…';
+      btn.textContent = hwpMsg('extracting', '추출 중…');
       btn.disabled = true;
 
       tryAiStudioCopyMarkdown(el).catch(function () { return null; }).then(function (copiedMd) {
@@ -588,22 +616,22 @@
         }
 
         if (!md || !md.trim()) {
-          btn.textContent = '추출 실패';
+          btn.textContent = hwpMsg('extractFailed', '추출 실패');
           btn.disabled = false;
-          setTimeout(function () { btn.textContent = 'hwpx파일로'; }, 2000);
+          setTimeout(function () { btn.textContent = hwpMsg('btnToHwpx', 'hwpx파일로'); }, 2000);
           return;
         }
 
         chrome.storage.local.set({ hwpxReportMd: md.trim() }, function () {
           if (chrome.runtime.lastError) {
-            btn.textContent = '저장 실패';
+            btn.textContent = hwpMsg('saveFailed', '저장 실패');
             btn.disabled = false;
-            setTimeout(function () { btn.textContent = 'hwpx파일로'; }, 2000);
+            setTimeout(function () { btn.textContent = hwpMsg('btnToHwpx', 'hwpx파일로'); }, 2000);
             return;
           }
           chrome.runtime.sendMessage({ type: 'open-report-popup' }, function () {
             void chrome.runtime.lastError;
-            btn.textContent = 'hwpx파일로';
+            btn.textContent = hwpMsg('btnToHwpx', 'hwpx파일로');
             btn.disabled = false;
           });
         });

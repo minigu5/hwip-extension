@@ -54,6 +54,8 @@ manifest.json               MV3 매니페스트 (AI 사이트에 content script 
 background.js               사이드패널 열기/닫기, 동적 content script 등록·권한 동기화
 lib/converter.js            ⚠️ src/converter.js 의 사본 (직접 수정 금지)
 lib/md-to-hwpx.js           ⚠️ src/md-to-hwpx.js 의 사본 (직접 수정 금지)
+lib/i18n.js                 popup/sidepanel 공용 다국어 헬퍼 (hwpT, data-i18n* 치환)
+_locales/ko, _locales/en    UI 문자열 (ko = 기본 언어, en = 영어). manifest 의 __MSG_*__ 와 JS 메시지가 참조
 content/content.js          호버 감지 + LaTeX 추출 + 변환·복사 (플로팅 "HWP 복사" 버튼)
 content/content-forced.js   자동 지원 목록 밖 페이지에 수동 주입되는 버전
 content/content.css         플로팅 버튼 스타일
@@ -64,6 +66,17 @@ convert/                    (미사용) 사이드패널 도입 전 레거시 팝
 templates/blank.hwpx        md-to-hwpx.js가 기반으로 쓰는 빈 HWPX 템플릿
 icons/                      16/48/128 아이콘
 ```
+
+## 다국어 (한국어 / English)
+
+브라우저 UI 언어가 한국어면 한국어, 영어면 영어로 표시된다. 그 외 언어는 기본 언어(ko)로 폴백한다.
+
+- 문자열은 `_locales/<언어>/messages.json` 에 있다. **새 문자열은 ko·en 둘 다에 추가**할 것.
+- manifest 는 `__MSG_extName__` 처럼 참조한다. (`default_locale: "ko"`)
+- popup·sidepanel HTML 은 `data-i18n`(텍스트) / `data-i18n-html` / `data-i18n-title` / `data-i18n-placeholder` 속성을 쓰고 `lib/i18n.js` 가 치환한다. JS 는 `window.hwpT('key')`.
+- content script 는 `hwpMsg('key', '한국어 폴백')` 로컬 헬퍼를 쓴다 (chrome.i18n 실패 시 한국어로 표시).
+- messages.json 에서 리터럴 `$` 는 `$$` 로 써야 한다 (플레이스홀더 문법).
+- 번역 대상이 아닌 것: `lib/md-to-hwpx.js` 가 만드는 문서 안 문구(예: 이미지 자리표시자 `[그림: …]`), 한글 글꼴 이름.
 
 ## 변환 로직 동기화
 

@@ -22,7 +22,12 @@
 
   function init() {
 
-  var BTN_LABEL = 'HWP 복사';
+  // 다국어: chrome.i18n 메시지, 실패하면 한국어 원문으로 폴백
+  function hwpMsg(key, fallback) {
+    try { var m = chrome.i18n.getMessage(key); if (m) return m; } catch (e) { /* noop */ }
+    return fallback;
+  }
+  var BTN_LABEL = hwpMsg('btnCopyHwp', 'HWP 복사');
 
   // 강제 적용 사이트면 셀렉터와 추출 경로를 확장한다(content-forced.js 가 먼저 세팅).
   var FORCED_MODE = !!window.__hwpForceFullCompat;
@@ -124,7 +129,7 @@
 
   function showConvert(katex) {
     currentKatex = katex;
-    btn.setAttribute('aria-label', '이 수식을 한글(HWP) 수식 문법으로 복사');
+    btn.setAttribute('aria-label', hwpMsg('btnCopyHwpAria', '이 수식을 한글(HWP) 수식 문법으로 복사'));
     resetLabel();
     btn.style.display = 'inline-flex';
     positionRect(katex.getBoundingClientRect());
@@ -219,13 +224,13 @@
     e.preventDefault();
     e.stopPropagation();
     var latex = currentKatex ? extractLatex(currentKatex) : '';
-    if (!latex) { flash('수식 없음'); return; }
-    flash('변환 중…');
+    if (!latex) { flash(hwpMsg('flashNoMath', '수식 없음')); return; }
+    flash(hwpMsg('converting', '변환 중…'));
     btn.disabled = true;
     convert(latex, function(err, hwp) {
       btn.disabled = false;
-      if (err || !hwp) { flash('변환 실패'); return; }
-      copyText(hwp, function () { flash('복사됨!'); });
+      if (err || !hwp) { flash(hwpMsg('flashFailed', '변환 실패')); return; }
+      copyText(hwp, function () { flash(hwpMsg('copied', '복사됨!')); });
     });
   });
   btn.addEventListener('mousedown', function (e) { e.stopPropagation(); });

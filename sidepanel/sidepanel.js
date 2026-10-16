@@ -1,5 +1,7 @@
 'use strict';
 
+var i18n = window.hwpT;
+
 (function () {
   var status = document.getElementById('status');
   var downloadBtn = document.getElementById('downloadBtn');
@@ -30,7 +32,7 @@
     fontFamilySel.innerHTML = '';
 
     var defOpt = document.createElement('option');
-    defOpt.value = ''; defOpt.textContent = '기본 (함초롬바탕)';
+    defOpt.value = ''; defOpt.textContent = i18n('fontDefault');
     fontFamilySel.appendChild(defOpt);
 
     function addGroup(label, list) {
@@ -44,7 +46,7 @@
       fontFamilySel.appendChild(g);
     }
 
-    addGroup('한글 기본 글꼴', DEFAULT_FONTS);
+    addGroup(i18n('fontGroupDefault'), DEFAULT_FONTS);
 
     if (localFonts && localFonts.length) {
       var seen = {};
@@ -55,7 +57,7 @@
       });
       extras.sort(function (a, b) { return a.localeCompare(b, 'ko'); });
       if (extras.length) {
-        addGroup('내 PC 글꼴 (' + extras.length + ')', extras);
+        addGroup(i18n('fontGroupLocal') + ' (' + extras.length + ')', extras);
       }
     }
 
@@ -70,14 +72,14 @@
   function tryAutoLoad() {
     if (!('queryLocalFonts' in window)) {
       loadLocalFontsBtn.disabled = true;
-      loadLocalFontsBtn.title = '이 브라우저는 Local Font Access API를 지원하지 않습니다';
+      loadLocalFontsBtn.title = i18n('fontLocalUnsupported');
       return;
     }
     window.queryLocalFonts().then(function (fonts) {
       var familySet = {};
       fonts.forEach(function (f) { if (f.family) familySet[f.family] = true; });
       populateFontSelect(Object.keys(familySet));
-      loadLocalFontsBtn.textContent = 'PC 글꼴 새로고침';
+      loadLocalFontsBtn.textContent = i18n('fontLocalRefresh');
     }).catch(function () {});
   }
 
@@ -86,12 +88,12 @@
       if (!('queryLocalFonts' in window)) return;
       loadLocalFontsBtn.disabled = true;
       var origText = loadLocalFontsBtn.textContent;
-      loadLocalFontsBtn.textContent = '불러오는 중…';
+      loadLocalFontsBtn.textContent = i18n('fontLocalLoading');
       window.queryLocalFonts().then(function (fonts) {
         var familySet = {};
         fonts.forEach(function (f) { if (f.family) familySet[f.family] = true; });
         populateFontSelect(Object.keys(familySet));
-        loadLocalFontsBtn.textContent = 'PC 글꼴 새로고침';
+        loadLocalFontsBtn.textContent = i18n('fontLocalRefresh');
         loadLocalFontsBtn.disabled = false;
       }).catch(function () {
         loadLocalFontsBtn.textContent = origText;
@@ -178,7 +180,7 @@
   // 마크다운 → A4 미리보기
   function renderPreview(mdText) {
     if (!mdText || !window.marked) {
-      previewContent.innerHTML = '<div class="preview-placeholder">미리보기를 불러올 수 없습니다.</div>';
+      previewContent.innerHTML = '<div class="preview-placeholder">' + i18n('previewUnavailable') + '</div>';
       return;
     }
     try {
@@ -205,16 +207,16 @@
         } catch (e) { /* KaTeX 오프라인 시 조용히 실패 */ }
       }
     } catch (e) {
-      previewContent.innerHTML = '<div class="preview-placeholder">미리보기 렌더링 실패</div>';
+      previewContent.innerHTML = '<div class="preview-placeholder">' + i18n('previewRenderFailed') + '</div>';
     }
   }
 
   function doConvert() {
-    if (!md) { setStatus('마크다운이 없습니다.', 'error'); return; }
+    if (!md) { setStatus(i18n('noMarkdown'), 'error'); return; }
 
     downloadBtn.disabled = true;
-    downloadBtn.textContent = '변환 중…';
-    setStatus('변환 중… (수식 포함 문서는 잠시 걸릴 수 있습니다)', '');
+    downloadBtn.textContent = i18n('converting');
+    setStatus(i18n('convertingLong'), '');
 
     var fontFamily = fontFamilySel.value;
     var fontSizePt = parseInt(fontSizeSel.value, 10) || 10;
@@ -250,7 +252,7 @@
           document.body.removeChild(a);
         }, 500);
 
-        setStatus('변환 완료! 파일이 다운로드됩니다.', 'success');
+        setStatus(i18n('convertDone'), 'success');
         // 다운로드 후 사이드패널 닫기
         setTimeout(function () {
           chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
@@ -264,8 +266,8 @@
         }, 800);
       })
       .catch(function (err) {
-        setStatus('변환 실패: ' + (err && err.message || String(err)), 'error');
-        downloadBtn.textContent = '다시 시도';
+        setStatus(i18n('convertFailedPrefix') + (err && err.message || String(err)), 'error');
+        downloadBtn.textContent = i18n('retry');
         downloadBtn.disabled = false;
       });
   }
@@ -285,16 +287,16 @@
   function loadMd() {
     chrome.storage.local.get('hwpxReportMd', function (data) {
       if (chrome.runtime.lastError) {
-        setStatus('저장소 오류: ' + chrome.runtime.lastError.message, 'error');
+        setStatus(i18n('storageErrorPrefix') + chrome.runtime.lastError.message, 'error');
         downloadBtn.disabled = true;
         return;
       }
       var loaded = (data && data.hwpxReportMd) || '';
       if (!loaded) {
         if (!md) {
-          setStatus('변환할 내용이 없습니다. 페이지에서 다시 버튼을 눌러주세요.', 'error');
+          setStatus(i18n('nothingToConvert'), 'error');
           downloadBtn.disabled = true;
-          previewContent.innerHTML = '<div class="preview-placeholder">AI 응답 아래의 <b>hwpx파일로</b> 버튼을 누르세요.</div>';
+          previewContent.innerHTML = '<div class="preview-placeholder">' + i18n('previewPlaceholderHtml') + '</div>';
         }
         return;
       }

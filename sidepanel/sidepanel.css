@@ -45,7 +45,8 @@ body {
 .row label {
   font-size: 0.76rem;
   font-weight: 600;
-  width: 56px;
+  width: 72px;            /* 영어 라벨("File name")이 줄바꿈되지 않도록 */
+  white-space: nowrap;
   flex-shrink: 0;
   color: var(--text);
 }
