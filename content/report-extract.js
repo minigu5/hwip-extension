@@ -255,8 +255,9 @@
       return '\n\n$$' + latex + '$$\n\n';
     });
 
-    // Step 3: 인라인 ( LaTeX ) → $ LaTeX $ 단, $$...$$ 블록 내부는 건드리지 않음
-    var segments = text.split(/([$][$][\s\S]*?[$][$])/g);
+    // Step 3: 인라인 ( LaTeX ) → $ LaTeX $ 단, $$...$$ 블록과 $...$ 인라인 수식 내부는 건드리지 않음
+    // ($(\mathbf{u} \cdot \nabla)\mathbf{u}$ 의 괄호를 또 $ 로 감싸 `$$…$…$` 가 되는 것을 막는다)
+    var segments = text.split(/([$][$][\s\S]*?[$][$]|[$][^$\n]+[$])/g);
     for (var i = 0; i < segments.length; i += 2) {  // 짝수 인덱스 = 블록 밖
       segments[i] = segments[i].replace(/\(([^)\n]{1,200}?)\)/g, function (m, inner) {
         if (/\$/.test(inner)) return m;  // 이미 $..$ 수식 포함 → 건드리지 않음
