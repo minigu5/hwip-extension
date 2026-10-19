@@ -18,7 +18,7 @@
  */
 
 var SCRIPT_ID = 'hwp-force-on';
-var INJECT_JS_FORCED = ['content/content-forced.js', 'content/content.js', 'content/report-extract.js'];
+var INJECT_JS_FORCED = ['content/i18n-content.js', 'content/content-forced.js', 'content/content.js', 'content/report-extract.js'];
 var INJECT_CSS = ['content/content.css'];
 
 function getStaticMatches() {
@@ -126,6 +126,21 @@ chrome.permissions.onRemoved.addListener(function () { syncDynamicScripts(); });
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === 'sync-scripts') {
     syncDynamicScripts(function () { sendResponse({ ok: true }); });
+    return true;
+  }
+  // content script 가 설정 언어의 번역문을 요청 (확장 파일을 직접 fetch 할 수 없다).
+  // chrome.i18n.getMessage 처럼 '$$' 는 '$' 로 푼다.
+  if (msg && msg.type === 'get-messages' && (msg.lang === 'ko' || msg.lang === 'en')) {
+    fetch(chrome.runtime.getURL('_locales/' + msg.lang + '/messages.json'))
+      .then(function (res) { return res.json(); })
+      .then(function (json) {
+        var messages = {};
+        Object.keys(json).forEach(function (k) {
+          messages[k] = String(json[k].message).replace(/\$\$/g, '$');
+        });
+        sendResponse({ ok: true, messages: messages });
+      })
+      .catch(function () { sendResponse({ ok: false }); });
     return true;
   }
   // 사이드패널 로드 완료 → 대기 중인 md 전달

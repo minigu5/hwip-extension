@@ -186,6 +186,16 @@ textarea:focus { outline: 2px solid var(--accent); border-color: var(--accent); 
 }
 .settings-row + .settings-row { border-top: 1px solid var(--border); }
 .settings-name { font-size: 0.85rem; font-weight: 500; }
+.settings-select {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  max-width: 55%;
+}
 .settings-hint { font-size: 0.75rem; color: var(--text-secondary, #888); margin: 8px 0 0; padding: 0 4px; }
 
 /* 토글 스위치 */

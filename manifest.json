@@ -70,6 +70,7 @@
         "https://kimi.moonshot.cn/*"
       ],
       "js": [
+        "content/i18n-content.js",
         "content/content.js",
         "content/report-extract.js"
       ],

@@ -92,6 +92,12 @@
   "settingsReloadHint": {
     "message": "Reload the website for changes to take effect."
   },
+  "settingLanguage": {
+    "message": "Language"
+  },
+  "langAuto": {
+    "message": "Auto (browser setting)"
+  },
   "convertFailedNetwork": {
     "message": "Conversion failed (network error)"
   },

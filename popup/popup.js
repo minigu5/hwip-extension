@@ -36,6 +36,7 @@ if (chrome.sidePanel) {
   var settingsView = document.getElementById('settingsView');
   var toggleFormulaCopy = document.getElementById('toggleFormulaCopy');
   var toggleHwpxReport = document.getElementById('toggleHwpxReport');
+  var langSelect = document.getElementById('langSelect');
 
   if (siteLinkBtn) {
     siteLinkBtn.addEventListener('click', function (e) {
@@ -120,7 +121,7 @@ if (chrome.sidePanel) {
   input.focus();
 
   // ── 설정 뷰 전환 ───────────────────────────────────────────────
-  var STORAGE_DEFAULTS = { autoFormulaCopy: true, autoHwpxReport: true };
+  var STORAGE_DEFAULTS = { autoFormulaCopy: true, autoHwpxReport: true, uiLang: 'auto' };
 
   function showSettings() {
     mainView.hidden = true;
@@ -129,6 +130,7 @@ if (chrome.sidePanel) {
       chrome.storage.sync.get(STORAGE_DEFAULTS, function (s) {
         toggleFormulaCopy.checked = !!s.autoFormulaCopy;
         toggleHwpxReport.checked = !!s.autoHwpxReport;
+        langSelect.value = s.uiLang;
       });
     }
   }
@@ -156,6 +158,18 @@ if (chrome.sidePanel) {
       }
     });
   }
+
+  // 언어 변경: 저장 후 팝업을 다시 불러와 모든 문구(동적 상태 문구 포함)를 새 언어로 그린다.
+  // 다시 열렸을 때 설정 화면에 머물도록 해시로 표시한다.
+  if (langSelect) {
+    langSelect.addEventListener('change', function () {
+      chrome.storage.sync.set({ uiLang: langSelect.value }, function () {
+        location.hash = 'settings';
+        location.reload();
+      });
+    });
+  }
+  if (location.hash === '#settings') showSettings();
 
   // ── 현재 페이지 상태 + 활성화 흐름 ─────────────────────────────
   // 자동 지원 사이트(manifest content_scripts.matches): 그대로 동작.

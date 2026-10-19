@@ -82,12 +82,19 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <div class="settings-row">
+          <label class="settings-name" for="langSelect" data-i18n="settingLanguage">언어</label>
+          <select class="settings-select" id="langSelect">
+            <option value="auto" data-i18n="langAuto">자동 (브라우저 설정)</option>
+            <option value="ko">한국어</option>
+            <option value="en">English</option>
+          </select>
+        </div>
       </div>
       <p class="settings-hint" data-i18n="settingsReloadHint">웹사이트를 새로고침해야 적용됩니다.</p>
     </div>
   </div>
 
-  <script src="../lib/i18n.js"></script>
-  <script src="popup.js"></script>
+  <script src="../lib/i18n.js" data-then="popup.js"></script>
 </body>
 </html>

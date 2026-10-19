@@ -11,21 +11,21 @@
   if (window.__hwpFormulaCopyInjected) return; // 중복 주입 방지
   window.__hwpFormulaCopyInjected = true;
 
+  var ready = window.__hwpMsgReady || Promise.resolve(); // i18n-content.js 의 언어 로드
   var storageApi = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync;
   if (storageApi) {
     chrome.storage.sync.get({ autoFormulaCopy: true }, function (s) {
-      if (s.autoFormulaCopy) init();
+      if (s.autoFormulaCopy) ready.then(init);
     });
   } else {
-    init();
+    ready.then(init);
   }
 
   function init() {
 
-  // 다국어: chrome.i18n 메시지, 실패하면 한국어 원문으로 폴백
+  // 다국어: 설정 언어(lib 대신 i18n-content.js) 메시지, 없으면 한국어 원문으로 폴백
   function hwpMsg(key, fallback) {
-    try { var m = chrome.i18n.getMessage(key); if (m) return m; } catch (e) { /* noop */ }
-    return fallback;
+    return window.__hwpMsg ? window.__hwpMsg(key, fallback) : fallback;
   }
   var BTN_LABEL = hwpMsg('btnCopyHwp', 'HWP 복사');
 
