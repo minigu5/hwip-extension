@@ -32,6 +32,7 @@
   // ── 사이트별 응답 컨텐츠 셀렉터 ──────────────────────────────
   var CONTENT_SELECTORS = [
     '[data-assistant-markdown-root]',                    // ChatGPT (2026-10 DOM 개편 이후)
+    '[data-markdown-text-style="assistant-message"]',    // ChatGPT (프로젝트 대화·재개편 DOM, 클래스 MarkdownRoot-*)
     '[data-message-author-role="assistant"] .markdown',  // ChatGPT
     '[data-message-author-role="assistant"] .prose',     // ChatGPT fallback
     '.font-claude-response',                             // Claude.ai (구버전)
