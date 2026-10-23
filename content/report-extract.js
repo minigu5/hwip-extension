@@ -523,7 +523,7 @@
     // 단, ms-cmark-node(AI Studio)는 문단·강조마다 재귀적으로 중첩되는 구조라
     // 위 규칙을 그대로 적용하면 전체 응답을 담은 최상위가 걸러지고 텍스트 몇 글자뿐인
     // 최말단 leaf만 남는다 → isReport() 실패 → 버튼 미표시. 이 태그만 반대로 최상위만 남긴다.
-    return results.filter(function (el) {
+    var matched = results.filter(function (el) {
       if (el.tagName === 'MS-CMARK-NODE') {
         // AI Studio: 사용자가 입력한 프롬프트도 ms-cmark-node 로 렌더링되므로
         // 실수로 버튼이 붙지 않게 사용자 turn 은 애초에 제외한다.
@@ -535,6 +535,57 @@
       return !results.some(function (other) {
         return other !== el && el.contains(other);
       });
+    });
+
+    // 셀렉터가 못 잡는 응답(사이트 DOM 개편)은 구조 기반 폴백으로 보완. 셀렉터 결과와 겹치면 셀렉터 우선.
+    var fallback = findContainersByStructure().filter(function (el) {
+      return !matched.some(function (m) { return m.contains(el) || el.contains(m); });
+    });
+    return matched.concat(fallback);
+  }
+
+  // ── 구조 기반 응답 컨테이너 탐색 (폴백) ──────────────────────
+  // 클래스·속성 이름 대신 "헤딩 2개 이상을 품은 가장 작은 공통 조상"을 응답 루트로 본다.
+  // 마크다운 렌더 결과는 헤딩들이 한 루트 아래 모이고, 서로 다른 응답의 헤딩은
+  // 더 큰 대화 컨테이너에서야 만나므로 "다른 후보를 품은 후보 제거"로 응답 단위가 남는다.
+  var NON_RESPONSE_ANCESTORS =
+    'nav, aside, header, footer, form, dialog, textarea, ' +
+    '[role="navigation"], [role="banner"], [role="complementary"], [role="dialog"], [role="menu"], ' +
+    '[contenteditable="true"], [contenteditable=""]';
+  var USER_TURN_MARKERS =
+    '[data-message-author-role="user"], [data-message-role="user"], [data-role="user"], ' +
+    '[data-testid*="user-message"], [class*="user-message"], .chat-turn-container.user';
+
+  function commonAncestor(a, b) {
+    var node = a;
+    while (node && !node.contains(b)) node = node.parentElement;
+    return node;
+  }
+
+  function findContainersByStructure() {
+    // 채팅 화면(입력창이 있는 페이지)에서만 — x.com·huggingface.co 같은 일반 페이지 오탐 방지
+    if (!document.querySelector('textarea, [contenteditable="true"]')) return [];
+
+    var headings = [];
+    var all = document.querySelectorAll('h1, h2, h3, h4');
+    for (var i = 0; i < all.length; i++) {
+      var h = all[i];
+      try {
+        if (h.closest(NON_RESPONSE_ANCESTORS) || h.closest(USER_TURN_MARKERS)) continue;
+      } catch (e) { continue; }
+      headings.push(h);
+    }
+    if (headings.length < 2) return [];
+
+    var candidates = [];
+    for (var k = 0; k + 1 < headings.length; k++) {
+      var lca = commonAncestor(headings[k], headings[k + 1]);
+      if (!lca || lca === document.body || lca === document.documentElement) continue;
+      if (candidates.indexOf(lca) < 0) candidates.push(lca);
+    }
+    // 다른 후보를 품은 후보(여러 응답을 아우르는 대화 컨테이너)는 제거
+    return candidates.filter(function (el) {
+      return !candidates.some(function (other) { return other !== el && el.contains(other); });
     });
   }
 
