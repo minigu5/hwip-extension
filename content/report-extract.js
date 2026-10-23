@@ -537,11 +537,10 @@
       });
     });
 
-    // 셀렉터가 못 잡는 응답(사이트 DOM 개편)은 구조 기반 폴백으로 보완. 셀렉터 결과와 겹치면 셀렉터 우선.
-    var fallback = findContainersByStructure().filter(function (el) {
-      return !matched.some(function (m) { return m.contains(el) || el.contains(m); });
-    });
-    return matched.concat(fallback);
+    // 셀렉터가 응답을 하나도 못 잡았을 때만(사이트 DOM 개편) 구조 기반 폴백으로 보완.
+    // 셀렉터가 일부라도 잡았으면 폴백을 켜지 않는다 — 켜면 사용자 말풍선·사이드바 등 오탐이 번진다.
+    if (matched.length > 0) return matched;
+    return findContainersByStructure();
   }
 
   // ── 구조 기반 응답 컨테이너 탐색 (폴백) ──────────────────────
@@ -562,8 +561,12 @@
     return node;
   }
 
+  // 채팅 전용이 아닌 일반 사이트 — 입력창(작성창)과 헤딩이 흔해 폴백이 오탐한다
+  var NON_CHAT_HOSTS = ['x.com', 'huggingface.co'];
+
   function findContainersByStructure() {
-    // 채팅 화면(입력창이 있는 페이지)에서만 — x.com·huggingface.co 같은 일반 페이지 오탐 방지
+    if (NON_CHAT_HOSTS.indexOf(location.hostname) >= 0) return [];
+    // 채팅 화면(입력창이 있는 페이지)에서만 — 일반 페이지 오탐 방지
     if (!document.querySelector('textarea, [contenteditable="true"]')) return [];
 
     var headings = [];
@@ -585,6 +588,11 @@
     }
     // 다른 후보를 품은 후보(여러 응답을 아우르는 대화 컨테이너)는 제거
     return candidates.filter(function (el) {
+      try {
+        if (el.closest(NON_RESPONSE_ANCESTORS) || el.closest(USER_TURN_MARKERS)) return false;
+        // 사용자 turn 을 품은 후보(대화 전체 컨테이너)도 응답 단위가 아니다
+        if (el.querySelector(USER_TURN_MARKERS)) return false;
+      } catch (e) { return false; }
       return !candidates.some(function (other) { return other !== el && el.contains(other); });
     });
   }
