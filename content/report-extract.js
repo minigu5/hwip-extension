@@ -561,6 +561,11 @@
     return node;
   }
 
+  // 마크다운 작업 목록의 체크박스는 응답에도 있으므로 input 은 checkbox 를 뺀다
+  var UI_CONTROLS =
+    'textarea, select, input:not([type="checkbox"]), [contenteditable="true"], [contenteditable=""], ' +
+    '[role="switch"], [role="combobox"], [role="slider"], [role="textbox"], mat-slide-toggle, mat-select';
+
   // 채팅 전용이 아닌 일반 사이트 — 입력창(작성창)과 헤딩이 흔해 폴백이 오탐한다
   var NON_CHAT_HOSTS = ['x.com', 'huggingface.co'];
 
@@ -592,6 +597,8 @@
         if (el.closest(NON_RESPONSE_ANCESTORS) || el.closest(USER_TURN_MARKERS)) return false;
         // 사용자 turn 을 품은 후보(대화 전체 컨테이너)도 응답 단위가 아니다
         if (el.querySelector(USER_TURN_MARKERS)) return false;
+        // 입력창·셀렉트·스위치를 품은 후보는 설정 패널·에디터 등 앱 UI다 (응답 본문엔 없다)
+        if (el.querySelector(UI_CONTROLS)) return false;
       } catch (e) { return false; }
       return !candidates.some(function (other) { return other !== el && el.contains(other); });
     });
