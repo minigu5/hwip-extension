@@ -15,4 +15,4 @@ It runs automatically on major AI chatbot sites with no setup. For pages that ar
 
 [Notes]
 • Equation copy and report conversion can each be switched off in the popup settings.
-• Web version (paste, image OCR, file conversion): https://hwip.vercel.app
+• Web version (paste, image OCR, file conversion): https://hwip.dshs.dev

@@ -23,7 +23,7 @@ if (chrome.sidePanel) {
   });
 }
 
-/* 팝업: 수동 LaTeX 입력 → hwip.vercel.app API → 출력 → 복사. */
+/* 팝업: 수동 LaTeX 입력 → hwip.dshs.dev API → 출력 → 복사. */
 (function () {
   var input = document.getElementById('input');
   var output = document.getElementById('output');
@@ -41,7 +41,7 @@ if (chrome.sidePanel) {
   if (siteLinkBtn) {
     siteLinkBtn.addEventListener('click', function (e) {
       e.preventDefault();
-      var url = 'https://hwip.vercel.app/';
+      var url = 'https://hwip.dshs.dev/';
       if (typeof chrome !== 'undefined' && chrome.tabs) {
         chrome.tabs.create({ url: url });
       } else {
@@ -50,7 +50,7 @@ if (chrome.sidePanel) {
     });
   }
 
-  var API_URL = 'https://hwip.vercel.app/api/convert';
+  var API_URL = 'https://hwip.dshs.dev/api/convert';
   var DEFAULT_HINT = hint.textContent;
   var hintTimer = null;
   var debounceTimer = null;

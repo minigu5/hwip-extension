@@ -42,7 +42,7 @@
     ? '.katex, mjx-container, math, [data-math], [data-math-source], ms-katex'
     : '.katex, [data-math], [data-math-source], ms-katex';
 
-  var API_URL = 'https://hwip.vercel.app/api/convert';
+  var API_URL = 'https://hwip.dshs.dev/api/convert';
   var currentKatex = null;
   var hideTimer = null;
 
