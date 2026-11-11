@@ -37,6 +37,19 @@ ChatGPT·Claude는 수식을 **KaTeX**로 렌더링하며, 원본 LaTeX를 DOM�
 확인 후 다운로드한다. `convert/` 폴더는 사이드패널 도입 전의 팝업 UI로 현재 manifest·background.js
 어디에서도 참조되지 않는 미사용 코드다.
 
+## Windows 보조 프로그램
+
+편집 가능한 한글 수식 개체 붙여넣기를 담당하는 Windows 보조 프로그램도 이 저장소의
+`companion/windows`에서 함께 관리한다. 다음 명령을 실행하면
+`companion/windows/dist`에 EXE와 SHA-256 파일이 생성된다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File companion/windows/build.ps1
+```
+
+버전 태그를 푸시하면 GitHub Actions가 Windows 프로그램과 Chrome 확장 ZIP을 서로 분리해
+빌드하고 같은 GitHub Release에 첨부한다.
+
 ## 설치
 
 **권장:** [Chrome 웹 스토어](https://chromewebstore.google.com/detail/meahkfhlalnljlgllhmhmfdhpkknfncg)에서 "Chrome에 추가"를 누르면 된다.
