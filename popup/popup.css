@@ -114,6 +114,24 @@ textarea:focus { outline: 2px solid var(--accent); border-color: var(--accent); 
 }
 .force-btn:disabled { background: #c2c7d0; cursor: not-allowed; }
 
+.companion-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: -6px 0 14px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.companion-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9aa3b2;
+  flex: 0 0 auto;
+}
+.companion-status.connected { color: #1e7a48; font-weight: 600; }
+.companion-status.connected .companion-dot { background: #1e9e5a; }
+
 /* 활성화 안내 패널 (file URL 토글, 차단 페이지 등) */
 .guide-panel {
   margin: -6px 0 14px;

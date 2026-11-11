@@ -59,6 +59,15 @@
   "pageChecking": {
     "message": "Checking current page…"
   },
+  "companionChecking": {
+    "message": "Checking for the Windows companion…"
+  },
+  "companionConnected": {
+    "message": "Windows companion connected · native HWP equation mode"
+  },
+  "companionBasicMode": {
+    "message": "Basic mode · using the original extension features"
+  },
   "enableOnPage": {
     "message": "Turn on for this page"
   },

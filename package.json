@@ -1,0 +1,8 @@
+{
+  "name": "hwip-extension",
+  "version": "0.9.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

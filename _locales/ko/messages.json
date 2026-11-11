@@ -59,6 +59,15 @@
   "pageChecking": {
     "message": "현재 페이지 확인 중…"
   },
+  "companionChecking": {
+    "message": "Windows 프로그램 확인 중…"
+  },
+  "companionConnected": {
+    "message": "Windows 프로그램 연결됨 · 한글 수식 개체 모드"
+  },
+  "companionBasicMode": {
+    "message": "기본 모드 · 기존 확장 기능 사용 중"
+  },
   "enableOnPage": {
     "message": "이 페이지에서 켜기"
   },

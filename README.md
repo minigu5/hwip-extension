@@ -1,6 +1,6 @@
 # 휩 - LaTeX → 한글(HWP) 수식 복사 — 크롬 확장
 
-[GitHub Repository (Separate)](https://github.com/minigu5/latex-to-hwp-extension) · [Chrome 웹 스토어에서 설치](https://chromewebstore.google.com/detail/meahkfhlalnljlgllhmhmfdhpkknfncg)
+[GitHub Repository](https://github.com/minigu5/hwip-extension) · [Chrome 웹 스토어에서 설치](https://chromewebstore.google.com/detail/meahkfhlalnljlgllhmhmfdhpkknfncg)
 
 ChatGPT·Claude 답변의 수식 위에 마우스를 올리면 오른쪽 아래에 **"HWP 복사"** 버튼이 떠서,
 클릭 한 번으로 한글(HWP) 수식 편집기 문법으로 변환해 클립보드에 복사한다.
@@ -10,6 +10,20 @@ ChatGPT·Claude 답변의 수식 위에 마우스를 올리면 오른쪽 아래�
 클릭하면 사이드패널이 열려 글꼴·글자크기·파일명을 설정하고 A4 미리보기(KaTeX 수식 렌더 포함)를
 확인한 뒤 `.hwpx` 파일로 바로 다운로드할 수 있다. 두 기능은 팝업 설정 화면에서 각각
 켜고 끌 수 있다("수식 변환 자동 감지" / "ai보고서 자동 감지").
+
+## 기본 모드 / Windows 프로그램 연동 모드
+
+확장은 항상 기존 기능을 제공하는 **기본 모드**로 시작한다. 로컬에서 휩 Windows 보조 프로그램
+(`127.0.0.1:38473`)이 감지되면 별도 설정 없이 **한글 수식 개체 모드**로 자동 전환한다.
+
+- **기본 모드:** 기존 HWP 문법 복사, 팝업 변환기, 보고서→HWPX 기능을 그대로 제공한다.
+- **한글 수식 개체 모드:** 기존 기능에 더해, 수식이 포함된 문단을 `Ctrl+C`하면 한글에서 편집 가능한
+  수식 개체와 본문으로 붙여넣을 수 있게 준비한다.
+- 보조 프로그램이 종료되면 최대 5초 안에 기본 모드로 돌아가며 일반 복사 이벤트를 건드리지 않는다.
+- 클립보드에는 `Hwp Native`와 원문 텍스트가 함께 준비되므로, 한글에서는 수식 개체로 붙고
+  Codex·메모장·웹 입력창에서는 수식이 생략되지 않은 원문 텍스트로 붙는다.
+
+팝업에는 현재 `기본 모드`인지 `Windows 프로그램 연결됨`인지 표시된다.
 
 ## 왜 확장이 더 정확한가
 
@@ -52,11 +66,13 @@ ChatGPT·Claude는 수식을 **KaTeX**로 렌더링하며, 원본 LaTeX를 DOM�
 ```
 manifest.json               MV3 매니페스트 (AI 사이트에 content script 주입, side_panel 등록)
 background.js               사이드패널 열기/닫기, 동적 content script 등록·권한 동기화
+lib/companion-detection.js  Windows 보조 프로그램 loopback 상태 감지
 lib/converter.js            ⚠️ src/converter.js 의 사본 (직접 수정 금지)
 lib/md-to-hwpx.js           ⚠️ src/md-to-hwpx.js 의 사본 (직접 수정 금지)
 lib/i18n.js                 popup/sidepanel 공용 다국어 헬퍼 (hwpT, data-i18n* 치환)
 _locales/ko, _locales/en    UI 문자열 (ko = 기본 언어, en = 영어). manifest 의 __MSG_*__ 와 JS 메시지가 참조
 content/content.js          호버 감지 + LaTeX 추출 + 변환·복사 (플로팅 "HWP 복사" 버튼)
+content/companion-mode.js   보조 프로그램 감지 시에만 수식 포함 문단 복사를 활성화
 content/content-forced.js   자동 지원 목록 밖 페이지에 수동 주입되는 버전
 content/content.css         플로팅 버튼 스타일
 content/report-extract.js   AI 보고서 감지 + "HWPX로 변환" 버튼 삽입

@@ -37,6 +37,19 @@ if (chrome.sidePanel) {
   var toggleFormulaCopy = document.getElementById('toggleFormulaCopy');
   var toggleHwpxReport = document.getElementById('toggleHwpxReport');
   var langSelect = document.getElementById('langSelect');
+  var companionStatus = document.getElementById('companionStatus');
+  var companionStatusText = document.getElementById('companionStatusText');
+
+  function refreshCompanionStatus() {
+    if (!chrome.runtime || !companionStatus || !companionStatusText) return;
+    chrome.runtime.sendMessage({ type: 'get-hwip-companion-state', force: true }, function (state) {
+      var connected = !chrome.runtime.lastError && state && state.available;
+      companionStatus.className = 'companion-status ' + (connected ? 'connected' : 'basic');
+      companionStatusText.textContent = i18n(connected ? 'companionConnected' : 'companionBasicMode');
+    });
+  }
+
+  refreshCompanionStatus();
 
   if (siteLinkBtn) {
     siteLinkBtn.addEventListener('click', function (e) {

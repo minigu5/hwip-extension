@@ -1,5 +1,7 @@
 'use strict';
 
+importScripts('lib/companion-detection.js');
+
 /*
  * background service worker
  *
@@ -18,8 +20,50 @@
  */
 
 var SCRIPT_ID = 'hwp-force-on';
-var INJECT_JS_FORCED = ['content/i18n-content.js', 'content/content-forced.js', 'content/content.js', 'content/report-extract.js'];
+var INJECT_JS_FORCED = ['content/i18n-content.js', 'content/content-forced.js', 'content/companion-mode.js', 'content/content.js', 'content/report-extract.js'];
 var INJECT_CSS = ['content/content.css'];
+var COMPANION_HEALTH_URL = 'http://127.0.0.1:38473/health';
+var COMPANION_CACHE_MS = 3000;
+var companionState = { available: false, checkedAt: 0 };
+var companionCheck = null;
+
+function broadcastCompanionState() {
+  chrome.tabs.query({}, function (tabs) {
+    if (chrome.runtime.lastError || !tabs) return;
+    tabs.forEach(function (tab) {
+      if (!tab.id) return;
+      chrome.tabs.sendMessage(tab.id, {
+        type: 'hwip-companion-state',
+        available: companionState.available,
+        checkedAt: companionState.checkedAt
+      }, function () { void chrome.runtime.lastError; });
+    });
+  });
+}
+
+function setCompanionState(available) {
+  var changed = companionState.available !== available;
+  companionState = { available: available, checkedAt: Date.now() };
+  if (changed) broadcastCompanionState();
+  return companionState;
+}
+
+function probeCompanion(force) {
+  var now = Date.now();
+  if (!force && companionState.checkedAt && now - companionState.checkedAt < COMPANION_CACHE_MS)
+    return Promise.resolve(companionState);
+  if (companionCheck) return companionCheck;
+
+  // 현재 보조 프로그램은 웹 Origin만 CORS 허용하므로 응답 본문 대신
+  // 정확한 loopback 포트에 HTTP 응답이 있는지만 확인한다.
+  companionCheck = self.HwipCompanionDetection.probe(fetch, COMPANION_HEALTH_URL, 1200).then(function (available) {
+    return setCompanionState(available);
+  }).then(function (state) {
+    companionCheck = null;
+    return state;
+  });
+  return companionCheck;
+}
 
 function getStaticMatches() {
   try {
@@ -88,6 +132,7 @@ function injectIntoMatchingTabs(originPattern) {
 
 // service worker가 깨어날 때마다 한 번 동기화 (이벤트가 모두 놓친 경우 대비).
 syncDynamicScripts();
+probeCompanion(true);
 
 chrome.runtime.onInstalled.addListener(function () { syncDynamicScripts(); });
 chrome.runtime.onStartup.addListener(function () { syncDynamicScripts(); });
@@ -124,6 +169,10 @@ chrome.permissions.onAdded.addListener(function (perms) {
 chrome.permissions.onRemoved.addListener(function () { syncDynamicScripts(); });
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+  if (msg && msg.type === 'get-hwip-companion-state') {
+    probeCompanion(!!msg.force).then(function (state) { sendResponse(state); });
+    return true;
+  }
   if (msg && msg.type === 'sync-scripts') {
     syncDynamicScripts(function () { sendResponse({ ok: true }); });
     return true;
