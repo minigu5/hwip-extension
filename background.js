@@ -150,6 +150,16 @@ function injectStaticIntoOpenTabs() {
   });
 }
 
+function injectStaticTab(tabId) {
+  if (!tabId) return;
+  chrome.scripting.insertCSS({ target: { tabId: tabId }, files: INJECT_CSS }, function () {
+    void chrome.runtime.lastError;
+    chrome.scripting.executeScript({ target: { tabId: tabId }, files: INJECT_JS_STATIC }, function () {
+      void chrome.runtime.lastError;
+    });
+  });
+}
+
 // service worker가 깨어날 때마다 한 번 동기화 (이벤트가 모두 놓친 경우 대비).
 syncDynamicScripts();
 probeCompanion(true);
@@ -177,6 +187,22 @@ chrome.tabs.onActivated.addListener(function (activeInfo) {
       chrome.sidePanel.setOptions({ tabId: storedId, enabled: false }, function () {
         void chrome.runtime.lastError;
       });
+    }
+  });
+});
+
+// 일부 Chrome 프로필에서는 unpacked 확장을 다시 로드한 뒤 정적 content script가
+// 기존 ChatGPT 탭에 누락될 수 있다. 지원 URL의 로드 완료 시 한 번 더 보장한다.
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+  if (changeInfo.status !== 'complete' || !tab || !tab.url) return;
+  var matches = getStaticMatches();
+  chrome.tabs.query({ url: matches }, function (tabs) {
+    if (chrome.runtime.lastError || !tabs) return;
+    for (var i = 0; i < tabs.length; i++) {
+      if (tabs[i].id === tabId) {
+        injectStaticTab(tabId);
+        return;
+      }
     }
   });
 });

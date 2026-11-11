@@ -8,7 +8,9 @@
  * (강제 적용 모드에서는 MathJax · MathML도 지원)
  */
 (function () {
-  if (window.__hwpFormulaCopyInjected) return; // 중복 주입 방지
+  // 이전 주입이 초기화 도중 실패하면 플래그만 남을 수 있다. 실제 버튼이 있을 때만
+  // 완료된 주입으로 판단하고, 버튼이 없으면 재주입으로 복구한다.
+  if (window.__hwpFormulaCopyInjected && document.querySelector('.hwp-copy-btn')) return;
   window.__hwpFormulaCopyInjected = true;
 
   var ready = window.__hwpMsgReady || Promise.resolve(); // i18n-content.js 의 언어 로드
