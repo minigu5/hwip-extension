@@ -744,4 +744,3 @@ namespace HwipCompanion
         internal static CopyResult Fail(string code, string message) { return new CopyResult { success = false, code = code, message = message }; }
     }
 }
-

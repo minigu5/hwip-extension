@@ -47,4 +47,3 @@ Windows에 포함된 .NET Framework C# 컴파일러를 사용하며 별도 패�
 - `POST /v1/equation/copy` — `{ "equation": "{a} over {b}" }`
 
 브라우저의 Private Network Access preflight를 위해 `OPTIONS`와 `Access-Control-Allow-Private-Network: true`를 지원한다.
-
