@@ -13,9 +13,16 @@
 
   var ready = window.__hwpMsgReady || Promise.resolve(); // i18n-content.js 의 언어 로드
   var storageApi = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync;
+  var formulaCopyEnabled = true;
   if (storageApi) {
     chrome.storage.sync.get({ autoFormulaCopy: true }, function (s) {
-      if (s.autoFormulaCopy) ready.then(init);
+      formulaCopyEnabled = s.autoFormulaCopy !== false;
+      ready.then(init);
+    });
+    chrome.storage.onChanged.addListener(function (changes, areaName) {
+      if (areaName !== 'sync' || !changes.autoFormulaCopy) return;
+      formulaCopyEnabled = changes.autoFormulaCopy.newValue !== false;
+      if (!formulaCopyEnabled && window.__hwpFormulaCopyHide) window.__hwpFormulaCopyHide();
     });
   } else {
     ready.then(init);
@@ -39,8 +46,8 @@
   //  - [data-math-source]  : ChatGPT (span[role="math"])
   //  - ms-katex       : Google AI Studio (ms-katex.inline / ms-katex.display)
   var HOVER_SELECTOR = FORCED_MODE
-    ? '.katex, .katex-display, mjx-container, math, [role="math"], [data-math], [data-math-source], [data-testid="math-container"], [data-testid="math-inline"], [data-testid="math-block"], .math-inline, .math-display, .math-block, ms-katex'
-    : '.katex, .katex-display, math, [role="math"], [data-math], [data-math-source], [data-testid="math-container"], [data-testid="math-inline"], [data-testid="math-block"], .math-inline, .math-display, .math-block, ms-katex';
+    ? '.katex, .katex-display, mjx-container, math, [role="math"], [data-math], [data-math-source], [data-testid*="math"], [class*="math-inline"], [class*="math-display"], [class*="math-block"], ms-katex'
+    : '.katex, .katex-display, math, [role="math"], [data-math], [data-math-source], [data-testid*="math"], [class*="math-inline"], [class*="math-display"], [class*="math-block"], ms-katex';
 
   var API_URL = 'https://hwip.dshs.dev/api/convert';
   var currentKatex = null;
@@ -175,6 +182,7 @@
     positionRect(katex.getBoundingClientRect());
   }
   function hide() { btn.style.display = 'none'; currentKatex = null; }
+  window.__hwpFormulaCopyHide = hide;
   function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(hide, 220); }
   function cancelHide() { clearTimeout(hideTimer); }
 
@@ -250,20 +258,35 @@
   }
 
   // ── 호버 변환 버튼 ─────────────────────────────────────────────
+  function mathElementFromEvent(e) {
+    var path = typeof e.composedPath === 'function' ? e.composedPath() : [e.target];
+    for (var i = 0; i < path.length; i++) {
+      var node = path[i];
+      if (!node || node.nodeType !== 1) continue;
+      if (node.matches && node.matches(HOVER_SELECTOR)) return node;
+      if (node.closest) {
+        var closest = node.closest(HOVER_SELECTOR);
+        if (closest) return closest;
+      }
+    }
+    return null;
+  }
+
   document.addEventListener('mouseover', function (e) {
+    if (!formulaCopyEnabled) return;
     var t = e.target;
-    if (!t || !t.closest) return;
+    if (!t) return;
     if (t === btn) { cancelHide(); return; }
-    var el = t.closest(HOVER_SELECTOR);
+    var el = mathElementFromEvent(e);
     // ChatGPT는 원본 LaTeX를 hover 시점보다 늦게 React props에 노출하기도 한다.
     // 버튼 표시를 원문 추출 성공 여부로 막지 않고, 실제 추출은 클릭할 때 수행한다.
     if (el) { cancelHide(); showConvert(el); }
-  });
+  }, true);
   document.addEventListener('mouseout', function (e) {
     var t = e.target;
     if (!t) return;
-    if (t === btn || (t.closest && t.closest(HOVER_SELECTOR))) scheduleHide();
-  });
+    if (t === btn || mathElementFromEvent(e)) scheduleHide();
+  }, true);
 
   // fixed 좌표가 어긋나므로 스크롤/리사이즈 시 숨김 (다음 호버에서 재계산)
   window.addEventListener('scroll', hide, true);
