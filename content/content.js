@@ -14,11 +14,12 @@
   var ready = window.__hwpMsgReady || Promise.resolve(); // i18n-content.js 의 언어 로드
   var storageApi = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync;
   var formulaCopyEnabled = true;
+  document.documentElement.setAttribute('data-hwip-formula-copy', 'ready');
+  init();
   if (storageApi) {
     chrome.storage.sync.get({ autoFormulaCopy: true }, function (s) {
       formulaCopyEnabled = s.autoFormulaCopy !== false;
       document.documentElement.setAttribute('data-hwip-formula-copy', formulaCopyEnabled ? 'ready' : 'disabled');
-      ready.then(init);
     });
     chrome.storage.onChanged.addListener(function (changes, areaName) {
       if (areaName !== 'sync' || !changes.autoFormulaCopy) return;
@@ -26,8 +27,6 @@
       document.documentElement.setAttribute('data-hwip-formula-copy', formulaCopyEnabled ? 'ready' : 'disabled');
       if (!formulaCopyEnabled && window.__hwpFormulaCopyHide) window.__hwpFormulaCopyHide();
     });
-  } else {
-    ready.then(init);
   }
 
   function init() {
@@ -164,6 +163,10 @@
   btn.className = 'hwp-copy-btn';
   btn.textContent = BTN_LABEL;
   document.documentElement.appendChild(btn);
+  ready.then(function () {
+    BTN_LABEL = hwpMsg('btnCopyHwp', 'HWP 복사');
+    if (!btn.classList.contains('copied')) btn.textContent = BTN_LABEL;
+  });
 
   function positionRect(rect) {
     var bw = btn.offsetWidth || 64;

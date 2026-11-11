@@ -20,6 +20,7 @@ importScripts('lib/companion-detection.js');
  */
 
 var SCRIPT_ID = 'hwp-force-on';
+var INJECT_JS_STATIC = ['content/i18n-content.js', 'content/companion-mode.js', 'content/content.js', 'content/report-extract.js'];
 var INJECT_JS_FORCED = ['content/i18n-content.js', 'content/content-forced.js', 'content/companion-mode.js', 'content/content.js', 'content/report-extract.js'];
 var INJECT_CSS = ['content/content.css'];
 var COMPANION_HEALTH_URL = 'http://127.0.0.1:38473/health';
@@ -130,11 +131,34 @@ function injectIntoMatchingTabs(originPattern) {
   });
 }
 
+// 확장을 설치하거나 개발자 모드에서 새로고침할 때 이미 열려 있던 지원 사이트에는
+// 정적 content_scripts가 소급 적용되지 않는다. 현재 탭에도 동일 스크립트를 즉시 주입한다.
+function injectStaticIntoOpenTabs() {
+  var matches = getStaticMatches();
+  if (!matches.length) return;
+  chrome.tabs.query({ url: matches }, function (tabs) {
+    if (chrome.runtime.lastError || !tabs) return;
+    tabs.forEach(function (tab) {
+      if (!tab.id) return;
+      chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: INJECT_CSS }, function () {
+        void chrome.runtime.lastError;
+        chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_JS_STATIC }, function () {
+          void chrome.runtime.lastError;
+        });
+      });
+    });
+  });
+}
+
 // service worker가 깨어날 때마다 한 번 동기화 (이벤트가 모두 놓친 경우 대비).
 syncDynamicScripts();
 probeCompanion(true);
+injectStaticIntoOpenTabs();
 
-chrome.runtime.onInstalled.addListener(function () { syncDynamicScripts(); });
+chrome.runtime.onInstalled.addListener(function () {
+  syncDynamicScripts();
+  injectStaticIntoOpenTabs();
+});
 chrome.runtime.onStartup.addListener(function () { syncDynamicScripts(); });
 
 chrome.tabs.onActivated.addListener(function (activeInfo) {
