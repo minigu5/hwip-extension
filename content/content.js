@@ -17,11 +17,13 @@
   if (storageApi) {
     chrome.storage.sync.get({ autoFormulaCopy: true }, function (s) {
       formulaCopyEnabled = s.autoFormulaCopy !== false;
+      document.documentElement.setAttribute('data-hwip-formula-copy', formulaCopyEnabled ? 'ready' : 'disabled');
       ready.then(init);
     });
     chrome.storage.onChanged.addListener(function (changes, areaName) {
       if (areaName !== 'sync' || !changes.autoFormulaCopy) return;
       formulaCopyEnabled = changes.autoFormulaCopy.newValue !== false;
+      document.documentElement.setAttribute('data-hwip-formula-copy', formulaCopyEnabled ? 'ready' : 'disabled');
       if (!formulaCopyEnabled && window.__hwpFormulaCopyHide) window.__hwpFormulaCopyHide();
     });
   } else {
@@ -46,8 +48,8 @@
   //  - [data-math-source]  : ChatGPT (span[role="math"])
   //  - ms-katex       : Google AI Studio (ms-katex.inline / ms-katex.display)
   var HOVER_SELECTOR = FORCED_MODE
-    ? '.katex, .katex-display, mjx-container, math, [role="math"], [data-math], [data-math-source], [data-testid*="math"], [class*="math-inline"], [class*="math-display"], [class*="math-block"], ms-katex'
-    : '.katex, .katex-display, math, [role="math"], [data-math], [data-math-source], [data-testid*="math"], [class*="math-inline"], [class*="math-display"], [class*="math-block"], ms-katex';
+    ? '.katex, .katex-display, mjx-container, math, annotation[encoding="application/x-tex"], [role="math"], [data-math], [data-math-source], [data-testid*="math"], [class*="math-inline"], [class*="math-display"], [class*="math-block"], ms-katex'
+    : '.katex, .katex-display, math, annotation[encoding="application/x-tex"], [role="math"], [data-math], [data-math-source], [data-testid*="math"], [class*="math-inline"], [class*="math-display"], [class*="math-block"], ms-katex';
 
   var API_URL = 'https://hwip.dshs.dev/api/convert';
   var currentKatex = null;
@@ -272,6 +274,20 @@
     return null;
   }
 
+  function mathElementAtPoint(x, y) {
+    if (typeof document.elementsFromPoint !== 'function') return null;
+    var stack = document.elementsFromPoint(x, y);
+    for (var i = 0; i < stack.length; i++) {
+      var node = stack[i];
+      if (node && node.matches && node.matches(HOVER_SELECTOR)) return node;
+      if (node && node.closest) {
+        var closest = node.closest(HOVER_SELECTOR);
+        if (closest) return closest;
+      }
+    }
+    return null;
+  }
+
   document.addEventListener('mouseover', function (e) {
     if (!formulaCopyEnabled) return;
     var t = e.target;
@@ -286,6 +302,19 @@
     var t = e.target;
     if (!t) return;
     if (t === btn || mathElementFromEvent(e)) scheduleHide();
+  }, true);
+
+  // ChatGPT가 수식 위에 선택/복사 레이어를 겹쳐 놓으면 event.target만으로는
+  // 아래쪽 KaTeX 노드를 찾을 수 없다. 같은 좌표에 쌓인 모든 요소를 조회해 보완한다.
+  var hoverFrame = 0;
+  document.addEventListener('mousemove', function (e) {
+    if (!formulaCopyEnabled || hoverFrame) return;
+    var x = e.clientX, y = e.clientY;
+    hoverFrame = requestAnimationFrame(function () {
+      hoverFrame = 0;
+      var el = mathElementAtPoint(x, y);
+      if (el) { cancelHide(); showConvert(el); }
+    });
   }, true);
 
   // fixed 좌표가 어긋나므로 스크롤/리사이즈 시 숨김 (다음 호버에서 재계산)
