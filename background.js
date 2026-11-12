@@ -53,7 +53,7 @@ function setCompanionState(available) {
 function probeCompanion() {
   if (!companionEnabled) return Promise.resolve(companionState);
   if (companionCheck) return companionCheck;
-  companionCheck = self.HwipCompanionDetection.probe(fetch, COMPANION_HEALTH_URL, 1200)
+  companionCheck = self.HwipCompanionDetection.probe(fetch, COMPANION_HEALTH_URL, 1200, 'cors')
     .then(setCompanionState)
     .then(function (state) { companionCheck = null; return state; });
   return companionCheck;

@@ -25,3 +25,13 @@ test('연결 실패 시 기존 기본 모드를 유지한다', async () => {
   );
   assert.equal(available, false);
 });
+
+test('공식 연동 상태 확인은 CORS 응답을 요구할 수 있다', async () => {
+  let request;
+  const available = await probe((url, options) => {
+    request = options;
+    return Promise.resolve({ ok: true });
+  }, 'http://127.0.0.1:38473/health', 100, 'cors');
+  assert.equal(available, true);
+  assert.equal(request.mode, 'cors');
+});
