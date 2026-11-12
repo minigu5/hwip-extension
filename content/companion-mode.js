@@ -1,48 +1,36 @@
 'use strict';
 
 /*
- * Windows 보조 프로그램이 실행 중일 때만 활성화되는 확장 모드.
- * 기본 모드에서는 copy 이벤트를 전혀 건드리지 않아 기존 확장 동작을 유지한다.
+ * 사용자가 Windows 수식 개체 변환을 켠 경우에만 혼합 문단 복사를 처리한다.
+ * 기본 복사는 먼저 그대로 완료되고, 변환 성공 시에만 보조 프로그램이
+ * Hwp Native + UnicodeText 클립보드로 교체한다.
  */
 (function () {
   if (window.__hwipCompanionModeInjected) return;
   window.__hwipCompanionModeInjected = true;
 
   var API_URL = 'https://hwip.dshs.dev/api/convert';
-  var PREFIX = 'HWIP_FRAGMENT_V1:';
-  var MATH_SELECTOR = '.katex, mjx-container, math, [role="math"], [data-math], [data-math-source], ms-katex';
+  var MATH_SELECTOR = '.katex, mjx-container, math, [data-math], [data-math-source], ms-katex';
   var BLOCK_TAGS = /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|BR|DIV|H[1-6]|HR|LI|P|PRE|SECTION|TR)$/;
-  var companionAvailable = false;
-  var formulaCopyEnabled = true;
+  var enabled = false;
+  var available = false;
 
-  function updateState(state) {
-    companionAvailable = !!(state && state.available);
-    document.documentElement.setAttribute('data-hwip-mode', companionAvailable ? 'companion' : 'basic');
+  function updateState(message) {
+    available = !!(enabled && message && message.enabled && message.available);
+    document.documentElement.setAttribute('data-hwip-mode', available ? 'companion' : 'basic');
   }
 
-  function requestState(force) {
-    try {
-      chrome.runtime.sendMessage({ type: 'get-hwip-companion-state', force: !!force }, function (state) {
-        if (chrome.runtime.lastError) return updateState(null);
-        updateState(state);
-      });
-    } catch (e) { updateState(null); }
-  }
-
+  chrome.storage.sync.get({ windowsNativeCopy: false }, function (values) {
+    enabled = values.windowsNativeCopy === true;
+    updateState(null);
+  });
+  chrome.storage.onChanged.addListener(function (changes, areaName) {
+    if (areaName !== 'sync' || !changes.windowsNativeCopy) return;
+    enabled = changes.windowsNativeCopy.newValue === true;
+    if (!enabled) updateState(null);
+  });
   chrome.runtime.onMessage.addListener(function (message) {
     if (message && message.type === 'hwip-companion-state') updateState(message);
-  });
-  requestState(true);
-  setInterval(function () { requestState(true); }, 5000);
-
-  chrome.storage.sync.get({ autoFormulaCopy: true }, function (result) {
-    formulaCopyEnabled = result.autoFormulaCopy !== false;
-  });
-
-  chrome.storage.onChanged.addListener(function (changes, areaName) {
-    if (areaName === 'sync' && changes.autoFormulaCopy) {
-      formulaCopyEnabled = changes.autoFormulaCopy.newValue !== false;
-    }
   });
 
   function latexOf(el) {
@@ -52,7 +40,7 @@
     if (annotation) return (annotation.textContent || '').trim();
     var script = el.querySelector && el.querySelector('script[type^="math/tex"]');
     if (script) return (script.textContent || '').trim();
-    return (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('alttext')) || '').trim();
+    return '';
   }
 
   function push(segments, type, value) {
@@ -105,32 +93,28 @@
     });
   }
 
-  function encodeFragment(segments, fallbackText) {
-    var json = JSON.stringify({ segments: segments, fallbackText: fallbackText || '' });
-    var bytes = new TextEncoder().encode(json);
-    var binary = '';
-    for (var i = 0; i < bytes.length; i += 0x8000)
-      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-    return PREFIX + btoa(binary);
-  }
-
-  document.addEventListener('copy', function (event) {
-    if (!companionAvailable || !formulaCopyEnabled) return;
+  document.addEventListener('copy', function () {
+    if (!enabled || !available) return;
     var source = extractSelection();
     if (!source) return;
     var fallbackText = window.getSelection().toString();
 
-    event.preventDefault();
-    event.clipboardData.setData('text/plain', fallbackText);
+    // preventDefault를 호출하지 않는다. 브라우저의 원문 복사를 먼저 보존한다.
     Promise.all(source.map(function (segment) {
       if (segment.type !== 'latex') return Promise.resolve(segment);
       return convert(segment.value).then(function (hwp) {
         return { type: 'equation', value: hwp };
       });
     })).then(function (segments) {
-      return navigator.clipboard.writeText(encodeFragment(segments, fallbackText));
+      chrome.runtime.sendMessage({
+        type: 'copy-hwip-fragment',
+        fragment: { segments: segments, fallbackText: fallbackText }
+      }, function (response) {
+        if (chrome.runtime.lastError || !response || !response.ok)
+          console.warn('[Hwip] Windows 수식 개체 변환에 실패해 원문 복사를 유지했습니다.');
+      });
     }).catch(function (error) {
-      console.warn('[Hwip] companion mode conversion failed:', error);
+      console.warn('[Hwip] 문단 수식 변환에 실패해 원문 복사를 유지했습니다.', error);
     });
   }, true);
 })();

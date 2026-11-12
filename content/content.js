@@ -8,27 +8,28 @@
  * (강제 적용 모드에서는 MathJax · MathML도 지원)
  */
 (function () {
-  // 이전 주입이 초기화 도중 실패하면 플래그만 남을 수 있다. 실제 버튼이 있을 때만
-  // 완료된 주입으로 판단하고, 버튼이 없으면 재주입으로 복구한다.
-  if (window.__hwpFormulaCopyInjected && document.querySelector('.hwp-copy-btn')) return;
+  if (window.__hwpFormulaCopyInjected) return; // 중복 주입 방지
   window.__hwpFormulaCopyInjected = true;
 
   var ready = window.__hwpMsgReady || Promise.resolve(); // i18n-content.js 의 언어 로드
   var storageApi = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync;
-  var formulaCopyEnabled = true;
-  document.documentElement.setAttribute('data-hwip-formula-copy', 'ready');
-  init();
+  var nativeCopyEnabled = false;
+  var companionAvailable = false;
+  if (storageApi) {
+    chrome.storage.sync.get({ windowsNativeCopy: false }, function (s) { nativeCopyEnabled = s.windowsNativeCopy === true; });
+    chrome.storage.onChanged.addListener(function (changes, areaName) {
+      if (areaName === 'sync' && changes.windowsNativeCopy) nativeCopyEnabled = changes.windowsNativeCopy.newValue === true;
+    });
+    chrome.runtime.onMessage.addListener(function (message) {
+      if (message && message.type === 'hwip-companion-state') companionAvailable = message.enabled === true && message.available === true;
+    });
+  }
   if (storageApi) {
     chrome.storage.sync.get({ autoFormulaCopy: true }, function (s) {
-      formulaCopyEnabled = s.autoFormulaCopy !== false;
-      document.documentElement.setAttribute('data-hwip-formula-copy', formulaCopyEnabled ? 'ready' : 'disabled');
+      if (s.autoFormulaCopy) ready.then(init);
     });
-    chrome.storage.onChanged.addListener(function (changes, areaName) {
-      if (areaName !== 'sync' || !changes.autoFormulaCopy) return;
-      formulaCopyEnabled = changes.autoFormulaCopy.newValue !== false;
-      document.documentElement.setAttribute('data-hwip-formula-copy', formulaCopyEnabled ? 'ready' : 'disabled');
-      if (!formulaCopyEnabled && window.__hwpFormulaCopyHide) window.__hwpFormulaCopyHide();
-    });
+  } else {
+    ready.then(init);
   }
 
   function init() {
@@ -49,8 +50,8 @@
   //  - [data-math-source]  : ChatGPT (span[role="math"])
   //  - ms-katex       : Google AI Studio (ms-katex.inline / ms-katex.display)
   var HOVER_SELECTOR = FORCED_MODE
-    ? '.katex, .katex-display, mjx-container, math, annotation[encoding="application/x-tex"], [role="math"], [data-math], [data-math-source], [data-testid*="math"], [class*="math-inline"], [class*="math-display"], [class*="math-block"], ms-katex'
-    : '.katex, .katex-display, math, annotation[encoding="application/x-tex"], [role="math"], [data-math], [data-math-source], [data-testid*="math"], [class*="math-inline"], [class*="math-display"], [class*="math-block"], ms-katex';
+    ? '.katex, mjx-container, math, [data-math], [data-math-source], ms-katex'
+    : '.katex, [data-math], [data-math-source], ms-katex';
 
   var API_URL = 'https://hwip.dshs.dev/api/convert';
   var currentKatex = null;
@@ -76,60 +77,20 @@
   function closestDataMath(el) {
     var cur = el;
     while (cur) {
-      if (cur.getAttribute && dataMathValue(cur)) return cur;
+      if (cur.getAttribute &&
+          (cur.getAttribute('data-math') || cur.getAttribute('data-math-source'))) return cur;
       cur = cur.parentElement;
     }
     return null;
   }
   function dataMathValue(el) {
-    var keys = ['data-math', 'data-math-source', 'data-formula', 'data-latex', 'data-tex', 'data-expression'];
-    for (var i = 0; i < keys.length; i++) {
-      var value = el.getAttribute(keys[i]);
-      if (value && value.trim()) return value.trim();
-    }
-    return '';
-  }
-  function stripMathDelimiters(value) {
-    return (value || '').trim()
-      .replace(/^\$\$([\s\S]*)\$\$$/, '$1')
-      .replace(/^\\\[([\s\S]*)\\\]$/, '$1')
-      .replace(/^\\\(([\s\S]*)\\\)$/, '$1')
-      .replace(/^\$([\s\S]*)\$$/, '$1')
-      .trim();
-  }
-  function latexFromReactFiber(el) {
-    var current = el;
-    for (var ancestor = 0; current && ancestor < 7; ancestor++, current = current.parentElement) {
-      var keys;
-      try { keys = Object.keys(current); } catch (e) { continue; }
-      for (var i = 0; i < keys.length; i++) {
-        if (keys[i].indexOf('__reactFiber') !== 0 && keys[i].indexOf('__reactInternalInstance') !== 0) continue;
-        var fiber = current[keys[i]];
-        for (var depth = 0; fiber && depth < 50; depth++, fiber = fiber.return) {
-          try {
-            var props = fiber.memoizedProps;
-            if (!props) continue;
-            var propKeys = ['math', 'formula', 'tex', 'expression', 'latex', 'value'];
-            for (var p = 0; p < propKeys.length; p++) {
-              var value = props[propKeys[p]];
-              if (typeof value === 'string' && value.trim()) return value.trim();
-            }
-            if (typeof props.children === 'string' && /[\\{}^_=]/.test(props.children))
-              return props.children.trim();
-          } catch (e) { /* React 버전에 따라 접근할 수 없는 속성은 건너뜀 */ }
-        }
-      }
-    }
-    return '';
+    return ((el.getAttribute('data-math') || el.getAttribute('data-math-source')) || '').trim();
   }
   // 강제 모드 또는 알려진 추출 경로가 있으면 true
   function hasExtractable(el) {
     if (!el) return false;
     if (hasAnnotation(el)) return true;
-    if (closestDataMath(el)) return true;
-    if (latexFromReactFiber(el)) return true;
-    if (dataMathValue(el)) return true;
-    if (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('alttext'))) return true;
+    if (closestDataMath(el)) return true;  // Gemini
     if (!FORCED_MODE) return false;
     if (el.querySelector('script[type="math/tex"], script[type^="math/tex"]')) return true;
     if (el.tagName && el.tagName.toLowerCase() === 'math') return true;
@@ -165,10 +126,6 @@
   btn.className = 'hwp-copy-btn';
   btn.textContent = BTN_LABEL;
   document.documentElement.appendChild(btn);
-  ready.then(function () {
-    BTN_LABEL = hwpMsg('btnCopyHwp', 'HWP 복사');
-    if (!btn.classList.contains('copied')) btn.textContent = BTN_LABEL;
-  });
 
   function positionRect(rect) {
     var bw = btn.offsetWidth || 64;
@@ -189,7 +146,6 @@
     positionRect(katex.getBoundingClientRect());
   }
   function hide() { btn.style.display = 'none'; currentKatex = null; }
-  window.__hwpFormulaCopyHide = hide;
   function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(hide, 220); }
   function cancelHide() { clearTimeout(hideTimer); }
 
@@ -219,24 +175,16 @@
   function extractLatex(el) {
     // 1) Gemini(data-math) / ChatGPT(data-math-source): 부모 요소에 원본 LaTeX 저장
     var dmEl = closestDataMath(el);
-    if (dmEl) return stripMathDelimiters(dataMathValue(dmEl));
+    if (dmEl) return dataMathValue(dmEl);
     // 2) KaTeX/MathJax 공통 — annotation 에 raw LaTeX
     var ann = el.querySelector('annotation[encoding="application/x-tex"]');
-    if (ann && ann.textContent) return stripMathDelimiters(ann.textContent);
-    // 3) ChatGPT의 HTML 전용 KaTeX 렌더는 원문을 React props에만 보관할 수 있다.
-    var reactLatex = latexFromReactFiber(el);
-    if (reactLatex) return stripMathDelimiters(reactLatex);
-    // 4) 최신 ChatGPT/MathML 래퍼의 대체 속성
-    var directData = dataMathValue(el);
-    if (directData) return stripMathDelimiters(directData);
-    var accessible = el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('alttext'));
-    if (accessible) return stripMathDelimiters(accessible);
-    // 5) 강제 모드 — MathJax v2 의 <script type="math/tex"> 에 raw LaTeX
+    if (ann && ann.textContent) return ann.textContent.trim();
+    // 2) 강제 모드 — MathJax v2 의 <script type="math/tex"> 에 raw LaTeX
     if (FORCED_MODE) {
       var sc = el.querySelector('script[type="math/tex"], script[type^="math/tex"]');
       if (sc && sc.textContent) return sc.textContent.trim();
     }
-    // 6) 강제 모드 — content-forced.js 가 받아둔 raw 소스(.md 원문 등)에서 인덱스로 lookup
+    // 3) 강제 모드 — content-forced.js 가 받아둔 raw 소스(.md 원문 등)에서 인덱스로 lookup
     if (FORCED_MODE && Array.isArray(window.__hwpRawMathSources) && window.__hwpRawMathSources.length) {
       var idx = indexOfContainer(el);
       if (idx >= 0 && idx < window.__hwpRawMathSources.length) {
@@ -244,10 +192,10 @@
         if (rec && rec.src) return rec.src;
       }
     }
-    // 7) MathML <math> textContent
+    // 4) MathML <math> textContent
     var mml = (el.tagName && el.tagName.toLowerCase() === 'math') ? el : el.querySelector('math');
     if (mml && mml.textContent) return mml.textContent.trim();
-    // 8) 마지막 폴백 — 보이는 텍스트 (시각 문자라 정확도 낮음)
+    // 5) 마지막 폴백 — 보이는 텍스트 (시각 문자라 정확도 낮음)
     return (el.textContent || '').trim();
   }
 
@@ -265,62 +213,18 @@
   }
 
   // ── 호버 변환 버튼 ─────────────────────────────────────────────
-  function mathElementFromEvent(e) {
-    var path = typeof e.composedPath === 'function' ? e.composedPath() : [e.target];
-    for (var i = 0; i < path.length; i++) {
-      var node = path[i];
-      if (!node || node.nodeType !== 1) continue;
-      if (node.matches && node.matches(HOVER_SELECTOR)) return node;
-      if (node.closest) {
-        var closest = node.closest(HOVER_SELECTOR);
-        if (closest) return closest;
-      }
-    }
-    return null;
-  }
-
-  function mathElementAtPoint(x, y) {
-    if (typeof document.elementsFromPoint !== 'function') return null;
-    var stack = document.elementsFromPoint(x, y);
-    for (var i = 0; i < stack.length; i++) {
-      var node = stack[i];
-      if (node && node.matches && node.matches(HOVER_SELECTOR)) return node;
-      if (node && node.closest) {
-        var closest = node.closest(HOVER_SELECTOR);
-        if (closest) return closest;
-      }
-    }
-    return null;
-  }
-
   document.addEventListener('mouseover', function (e) {
-    if (!formulaCopyEnabled) return;
     var t = e.target;
-    if (!t) return;
+    if (!t || !t.closest) return;
     if (t === btn) { cancelHide(); return; }
-    var el = mathElementFromEvent(e);
-    // ChatGPT는 원본 LaTeX를 hover 시점보다 늦게 React props에 노출하기도 한다.
-    // 버튼 표시를 원문 추출 성공 여부로 막지 않고, 실제 추출은 클릭할 때 수행한다.
-    if (el) { cancelHide(); showConvert(el); }
-  }, true);
+    var el = t.closest(HOVER_SELECTOR);
+    if (el && hasExtractable(el)) { cancelHide(); showConvert(el); }
+  });
   document.addEventListener('mouseout', function (e) {
     var t = e.target;
     if (!t) return;
-    if (t === btn || mathElementFromEvent(e)) scheduleHide();
-  }, true);
-
-  // ChatGPT가 수식 위에 선택/복사 레이어를 겹쳐 놓으면 event.target만으로는
-  // 아래쪽 KaTeX 노드를 찾을 수 없다. 같은 좌표에 쌓인 모든 요소를 조회해 보완한다.
-  var hoverFrame = 0;
-  document.addEventListener('mousemove', function (e) {
-    if (!formulaCopyEnabled || hoverFrame) return;
-    var x = e.clientX, y = e.clientY;
-    hoverFrame = requestAnimationFrame(function () {
-      hoverFrame = 0;
-      var el = mathElementAtPoint(x, y);
-      if (el) { cancelHide(); showConvert(el); }
-    });
-  }, true);
+    if (t === btn || (t.closest && t.closest(HOVER_SELECTOR))) scheduleHide();
+  });
 
   // fixed 좌표가 어긋나므로 스크롤/리사이즈 시 숨김 (다음 호버에서 재계산)
   window.addEventListener('scroll', hide, true);
@@ -337,7 +241,17 @@
     convert(latex, function(err, hwp) {
       btn.disabled = false;
       if (err || !hwp) { flash(hwpMsg('flashFailed', '변환 실패')); return; }
-      copyText(hwp, function () { flash(hwpMsg('copied', '복사됨!')); });
+      if (nativeCopyEnabled && companionAvailable) {
+        chrome.runtime.sendMessage({
+          type: 'copy-hwip-fragment',
+          fragment: { segments: [{ type: 'equation', value: hwp }], fallbackText: hwp }
+        }, function (response) {
+          if (!chrome.runtime.lastError && response && response.ok) { flash(hwpMsg('copied', '복사됨!')); return; }
+          copyText(hwp, function () { flash(hwpMsg('copied', '복사됨!')); });
+        });
+      } else {
+        copyText(hwp, function () { flash(hwpMsg('copied', '복사됨!')); });
+      }
     });
   });
   btn.addEventListener('mousedown', function (e) { e.stopPropagation(); });

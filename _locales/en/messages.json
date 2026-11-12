@@ -62,6 +62,15 @@
   "companionChecking": {
     "message": "Checking for the Windows companion…"
   },
+  "companionOptInOff": {
+    "message": "Windows equation objects off · enable in Settings"
+  },
+  "companionNotConnected": {
+    "message": "Start the Windows companion"
+  },
+  "settingWindowsNativeCopy": {
+    "message": "Windows equation objects"
+  },
   "companionConnected": {
     "message": "Windows companion connected · native HWP equation mode"
   },

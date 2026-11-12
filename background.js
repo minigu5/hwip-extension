@@ -20,51 +20,65 @@ importScripts('lib/companion-detection.js');
  */
 
 var SCRIPT_ID = 'hwp-force-on';
-var INJECT_JS_STATIC = ['content/i18n-content.js', 'content/companion-mode.js', 'content/content.js', 'content/report-extract.js'];
 var INJECT_JS_FORCED = ['content/i18n-content.js', 'content/content-forced.js', 'content/companion-mode.js', 'content/content.js', 'content/report-extract.js'];
 var INJECT_CSS = ['content/content.css'];
+var COMPANION_ALARM = 'hwip-companion-probe';
 var COMPANION_HEALTH_URL = 'http://127.0.0.1:38473/health';
-var COMPANION_CACHE_MS = 3000;
-var companionState = { available: false, checkedAt: 0 };
+var COMPANION_FRAGMENT_URL = 'http://127.0.0.1:38473/v1/fragment/copy';
+var companionEnabled = false;
+var companionState = { enabled: false, available: false, checkedAt: 0 };
 var companionCheck = null;
 
-function broadcastCompanionState() {
+function companionMessage() {
+  return { type: 'hwip-companion-state', enabled: companionState.enabled, available: companionState.available, checkedAt: companionState.checkedAt };
+}
+function broadcastCompanionState(tabId) {
+  var message = companionMessage();
+  if (tabId) {
+    chrome.tabs.sendMessage(tabId, message, function () { void chrome.runtime.lastError; });
+    return;
+  }
   chrome.tabs.query({}, function (tabs) {
     if (chrome.runtime.lastError || !tabs) return;
     tabs.forEach(function (tab) {
-      if (!tab.id) return;
-      chrome.tabs.sendMessage(tab.id, {
-        type: 'hwip-companion-state',
-        available: companionState.available,
-        checkedAt: companionState.checkedAt
-      }, function () { void chrome.runtime.lastError; });
+      if (tab.id) chrome.tabs.sendMessage(tab.id, message, function () { void chrome.runtime.lastError; });
     });
   });
 }
-
 function setCompanionState(available) {
-  var changed = companionState.available !== available;
-  companionState = { available: available, checkedAt: Date.now() };
-  if (changed) broadcastCompanionState();
+  companionState = { enabled: companionEnabled, available: !!available, checkedAt: Date.now() };
+  broadcastCompanionState();
   return companionState;
 }
-
-function probeCompanion(force) {
-  var now = Date.now();
-  if (!force && companionState.checkedAt && now - companionState.checkedAt < COMPANION_CACHE_MS)
-    return Promise.resolve(companionState);
+function probeCompanion() {
+  if (!companionEnabled) return Promise.resolve(companionState);
   if (companionCheck) return companionCheck;
-
-  // 현재 보조 프로그램은 웹 Origin만 CORS 허용하므로 응답 본문 대신
-  // 정확한 loopback 포트에 HTTP 응답이 있는지만 확인한다.
-  companionCheck = self.HwipCompanionDetection.probe(fetch, COMPANION_HEALTH_URL, 1200).then(function (available) {
-    return setCompanionState(available);
-  }).then(function (state) {
-    companionCheck = null;
-    return state;
-  });
+  companionCheck = self.HwipCompanionDetection.probe(fetch, COMPANION_HEALTH_URL, 1200)
+    .then(setCompanionState)
+    .then(function (state) { companionCheck = null; return state; });
   return companionCheck;
 }
+function applyCompanionEnabled(enabled) {
+  companionEnabled = !!enabled;
+  companionState = { enabled: companionEnabled, available: false, checkedAt: 0 };
+  if (!companionEnabled) {
+    chrome.alarms.clear(COMPANION_ALARM);
+    broadcastCompanionState();
+    return;
+  }
+  chrome.alarms.create(COMPANION_ALARM, { periodInMinutes: 0.5 });
+  probeCompanion();
+}
+chrome.storage.sync.get({ windowsNativeCopy: false }, function (values) {
+  applyCompanionEnabled(values.windowsNativeCopy === true);
+});
+chrome.storage.onChanged.addListener(function (changes, areaName) {
+  if (areaName === 'sync' && changes.windowsNativeCopy)
+    applyCompanionEnabled(changes.windowsNativeCopy.newValue === true);
+});
+chrome.alarms.onAlarm.addListener(function (alarm) {
+  if (alarm && alarm.name === COMPANION_ALARM && companionEnabled) probeCompanion();
+});
 
 function getStaticMatches() {
   try {
@@ -131,45 +145,15 @@ function injectIntoMatchingTabs(originPattern) {
   });
 }
 
-// 확장을 설치하거나 개발자 모드에서 새로고침할 때 이미 열려 있던 지원 사이트에는
-// 정적 content_scripts가 소급 적용되지 않는다. 현재 탭에도 동일 스크립트를 즉시 주입한다.
-function injectStaticIntoOpenTabs() {
-  var matches = getStaticMatches();
-  if (!matches.length) return;
-  chrome.tabs.query({ url: matches }, function (tabs) {
-    if (chrome.runtime.lastError || !tabs) return;
-    tabs.forEach(function (tab) {
-      if (!tab.id) return;
-      chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: INJECT_CSS }, function () {
-        void chrome.runtime.lastError;
-        chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_JS_STATIC }, function () {
-          void chrome.runtime.lastError;
-        });
-      });
-    });
-  });
-}
-
-function injectStaticTab(tabId) {
-  if (!tabId) return;
-  chrome.scripting.insertCSS({ target: { tabId: tabId }, files: INJECT_CSS }, function () {
-    void chrome.runtime.lastError;
-    chrome.scripting.executeScript({ target: { tabId: tabId }, files: INJECT_JS_STATIC }, function () {
-      void chrome.runtime.lastError;
-    });
-  });
-}
-
 // service worker가 깨어날 때마다 한 번 동기화 (이벤트가 모두 놓친 경우 대비).
 syncDynamicScripts();
-probeCompanion(true);
-injectStaticIntoOpenTabs();
 
-chrome.runtime.onInstalled.addListener(function () {
-  syncDynamicScripts();
-  injectStaticIntoOpenTabs();
-});
+chrome.runtime.onInstalled.addListener(function () { syncDynamicScripts(); });
 chrome.runtime.onStartup.addListener(function () { syncDynamicScripts(); });
+
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo) {
+  if (changeInfo.status === 'complete' && companionEnabled) broadcastCompanionState(tabId);
+});
 
 chrome.tabs.onActivated.addListener(function (activeInfo) {
   chrome.storage.session.get('panelTabId', function (data) {
@@ -191,22 +175,6 @@ chrome.tabs.onActivated.addListener(function (activeInfo) {
   });
 });
 
-// 일부 Chrome 프로필에서는 unpacked 확장을 다시 로드한 뒤 정적 content script가
-// 기존 ChatGPT 탭에 누락될 수 있다. 지원 URL의 로드 완료 시 한 번 더 보장한다.
-chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
-  if (changeInfo.status !== 'complete' || !tab || !tab.url) return;
-  var matches = getStaticMatches();
-  chrome.tabs.query({ url: matches }, function (tabs) {
-    if (chrome.runtime.lastError || !tabs) return;
-    for (var i = 0; i < tabs.length; i++) {
-      if (tabs[i].id === tabId) {
-        injectStaticTab(tabId);
-        return;
-      }
-    }
-  });
-});
-
 chrome.permissions.onAdded.addListener(function (perms) {
   // 1) 다음 로드부터 자동 주입되도록 동적 등록 동기화
   syncDynamicScripts(function () {
@@ -220,7 +188,31 @@ chrome.permissions.onRemoved.addListener(function () { syncDynamicScripts(); });
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === 'get-hwip-companion-state') {
-    probeCompanion(!!msg.force).then(function (state) { sendResponse(state); });
+    sendResponse(companionState);
+    return false;
+  }
+  if (msg && msg.type === 'copy-hwip-fragment') {
+    if (!companionEnabled) { sendResponse({ ok: false, error: 'disabled' }); return false; }
+    var fragment = msg.fragment;
+    if (!fragment || !Array.isArray(fragment.segments)) {
+      sendResponse({ ok: false, error: 'invalid-fragment' });
+      return false;
+    }
+    fetch(COMPANION_FRAGMENT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fragment),
+      cache: 'no-store'
+    }).then(function (response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    }).then(function (result) {
+      setCompanionState(true);
+      sendResponse({ ok: result && result.success !== false, result: result });
+    }).catch(function (error) {
+      setCompanionState(false);
+      sendResponse({ ok: false, error: String(error && error.message || error) });
+    });
     return true;
   }
   if (msg && msg.type === 'sync-scripts') {
