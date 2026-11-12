@@ -10,7 +10,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
@@ -21,7 +20,9 @@ namespace HwipCompanion
     internal static class Program
     {
         internal const string ExtensionUrl = "https://chromewebstore.google.com/detail/meahkfhlalnljlgllhmhmfdhpkknfncg";
+        internal const string StoreExtensionOrigin = "chrome-extension://meahkfhlalnljlgllhmhmfdhpkknfncg";
         internal const string RunValueName = "HwipCompanion";
+        internal static string DevelopmentExtensionOrigin { get; private set; }
 
         [STAThread]
         private static void Main(string[] args)
@@ -31,6 +32,9 @@ namespace HwipCompanion
 
             bool portable = Array.IndexOf(args, "--portable") >= 0;
             bool installedLaunch = Array.IndexOf(args, "--installed") >= 0;
+            foreach (string arg in args)
+                if (arg.StartsWith("--extension-origin=chrome-extension://", StringComparison.OrdinalIgnoreCase))
+                    DevelopmentExtensionOrigin = arg.Substring("--extension-origin=".Length).TrimEnd('/');
             if (!portable && !installedLaunch && !Installer.IsInstalledExecutable())
             {
                 Installer.RunFirstInstall();
@@ -242,13 +246,10 @@ namespace HwipCompanion
 
     internal sealed class CompanionContext : ApplicationContext
     {
-        private const string FragmentPrefix = "HWIP_FRAGMENT_V1:";
         private readonly NotifyIcon tray;
         private readonly EquationClipboard equationClipboard;
         private readonly LocalServer server;
         private readonly Control dispatcher;
-        private readonly ClipboardWatcher clipboardWatcher;
-        private ToolStripMenuItem autoConvertMenu;
         private ToolStripMenuItem autoStartMenu;
 
         internal CompanionContext()
@@ -256,7 +257,7 @@ namespace HwipCompanion
             equationClipboard = new EquationClipboard();
             dispatcher = new Control();
             dispatcher.CreateControl();
-            server = new LocalServer(CopyEquationOnUiThread);
+            server = new LocalServer(CopyEquationOnUiThread, CopyFragmentOnUiThread, Program.DevelopmentExtensionOrigin);
             tray = new NotifyIcon
             {
                 Icon = System.Drawing.SystemIcons.Application,
@@ -264,7 +265,6 @@ namespace HwipCompanion
                 Visible = true,
                 ContextMenuStrip = BuildMenu()
             };
-            clipboardWatcher = new ClipboardWatcher(OnClipboardTextChanged);
             tray.ShowBalloonTip(2500, "휩", "한글 수식 개체 복사 준비가 완료되었습니다.", ToolTipIcon.Info);
             server.Start();
         }
@@ -273,8 +273,6 @@ namespace HwipCompanion
         {
             var menu = new ContextMenuStrip();
             menu.Items.Add("실행 중 - 127.0.0.1:38473").Enabled = false;
-            autoConvertMenu = new ToolStripMenuItem("복사한 HWP 수식 자동 개체 변환") { Checked = true, CheckOnClick = true };
-            menu.Items.Add(autoConvertMenu);
             bool installed = Installer.IsInstalledExecutable();
             autoStartMenu = new ToolStripMenuItem("Windows 시작 시 자동 실행")
             {
@@ -302,51 +300,6 @@ namespace HwipCompanion
             if (result == DialogResult.Yes) ExitThread();
         }
 
-        private void OnClipboardTextChanged(string text)
-        {
-            if (autoConvertMenu == null || !autoConvertMenu.Checked) return;
-            try
-            {
-                CopyResult result;
-                if (text.StartsWith(FragmentPrefix, StringComparison.Ordinal))
-                {
-                    string encoded = text.Substring(FragmentPrefix.Length);
-                    if (encoded.Length > 1400000) throw new InvalidDataException("복사한 문단이 너무 깁니다. 1MB 이하로 나누어 복사해 주세요.");
-                    string payload = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
-                    var serializer = new JavaScriptSerializer { MaxJsonLength = 1024 * 1024 };
-                    FragmentEnvelope fragment = serializer.Deserialize<FragmentEnvelope>(payload);
-                    if (fragment == null || fragment.segments == null || fragment.segments.Count == 0) return;
-                    if (fragment.segments.Count > 1000) throw new InvalidDataException("한 번에 복사할 수 있는 텍스트·수식 조각은 1,000개입니다.");
-                    result = equationClipboard.CopyFragment(fragment.segments, fragment.fallbackText);
-                }
-                else
-                {
-                    if (!LooksLikeHwpEquation(text)) return;
-                    result = equationClipboard.Copy(text);
-                }
-                if (result.success)
-                    tray.ShowBalloonTip(1200, "휩", "복사한 수식을 한글 수식 개체로 변환했습니다. 한글에서 Ctrl+V 하세요.", ToolTipIcon.Info);
-                else
-                    tray.ShowBalloonTip(2500, "휩", result.message, ToolTipIcon.Warning);
-            }
-            catch (Exception ex)
-            {
-                tray.ShowBalloonTip(2500, "휩", FriendlyError(ex), ToolTipIcon.Error);
-            }
-        }
-
-        private static bool LooksLikeHwpEquation(string text)
-        {
-            if (String.IsNullOrWhiteSpace(text) || text.Length > 50000) return false;
-            // 변환기가 이항 연산자 주변에 넣는 1/4칸 표식.
-            if (Regex.IsMatch(text, "`[+\\-*/=<>:]`")) return true;
-            // 첨자 또는 한글 수식 구조 명령이 있으면 수식 문법으로 간주한다.
-            if (Regex.IsMatch(text, @"(?:_|\^)\s*\{[^{}]*\}")) return true;
-            return Regex.IsMatch(text,
-                @"(?:^|\s)(?:over|atop|sqrt|sum|prod|int|oint|dint|tint|lim|Lim|matrix|pmatrix|bmatrix|dmatrix|cases|pile|REL|LEFT|RIGHT|CHOOSE|BINOM|COLOR|LSUB|LSUP|LADDER|SLADDER|LONGDIV)(?=\s|\{|\(|\[)",
-                RegexOptions.IgnoreCase);
-        }
-
         private CopyResult CopyEquationOnUiThread(string equation, int timeoutMs)
         {
             CopyResult result = null;
@@ -362,7 +315,29 @@ namespace HwipCompanion
                 if (!completed.WaitOne(timeoutMs)) return CopyResult.Fail("TIMEOUT", "한글 수식 개체 생성 시간이 초과되었습니다.");
             }
             if (error != null) return CopyResult.Fail("HWP_ERROR", FriendlyError(error));
-            return result ?? CopyResult.Fail("UNKNOWN", "수식 개체를 만들지 못했습니다.");
+            result = result ?? CopyResult.Fail("UNKNOWN", "수식 개체를 만들지 못했습니다.");
+            if (result.success) tray.ShowBalloonTip(1200, "휩", "한글 수식 개체 변환이 완료되었습니다. 한글에서 Ctrl+V 하세요.", ToolTipIcon.Info);
+            return result;
+        }
+
+        private CopyResult CopyFragmentOnUiThread(List<FragmentSegment> segments, string fallbackText, int timeoutMs)
+        {
+            CopyResult result = null;
+            Exception error = null;
+            using (var completed = new ManualResetEvent(false))
+            {
+                dispatcher.BeginInvoke((MethodInvoker)delegate
+                {
+                    try { result = equationClipboard.CopyFragment(segments, fallbackText); }
+                    catch (Exception ex) { error = ex; }
+                    finally { completed.Set(); }
+                });
+                if (!completed.WaitOne(timeoutMs)) return CopyResult.Fail("TIMEOUT", "한글 문단 생성 시간이 초과되었습니다.");
+            }
+            if (error != null) return CopyResult.Fail("HWP_ERROR", FriendlyError(error));
+            result = result ?? CopyResult.Fail("UNKNOWN", "수식 문단을 만들지 못했습니다.");
+            if (result.success) tray.ShowBalloonTip(1200, "휩", "텍스트와 수식 개체 변환이 완료되었습니다. 한글에서 Ctrl+V 하세요.", ToolTipIcon.Info);
+            return result;
         }
 
         private static string FriendlyError(Exception error)
@@ -377,72 +352,11 @@ namespace HwipCompanion
         protected override void ExitThreadCore()
         {
             server.Dispose();
-            clipboardWatcher.Dispose();
             equationClipboard.Dispose();
             dispatcher.Dispose();
             tray.Visible = false;
             tray.Dispose();
             base.ExitThreadCore();
-        }
-    }
-
-    internal sealed class ClipboardWatcher : NativeWindow, IDisposable
-    {
-        private const int WmClipboardUpdate = 0x031D;
-        private readonly Action<string> onText;
-        private readonly System.Windows.Forms.Timer debounce;
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool AddClipboardFormatListener(IntPtr hwnd);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
-
-        internal ClipboardWatcher(Action<string> onText)
-        {
-            this.onText = onText;
-            CreateHandle(new CreateParams());
-            if (!AddClipboardFormatListener(Handle)) throw new InvalidOperationException("클립보드 감시를 시작하지 못했습니다.");
-            debounce = new System.Windows.Forms.Timer { Interval = 120 };
-            debounce.Tick += delegate
-            {
-                debounce.Stop();
-                TryReadClipboard();
-            };
-        }
-
-        protected override void WndProc(ref Message m)
-        {
-            if (m.Msg == WmClipboardUpdate)
-            {
-                debounce.Stop();
-                debounce.Start();
-            }
-            base.WndProc(ref m);
-        }
-
-        private void TryReadClipboard()
-        {
-            try
-            {
-                IDataObject data = Clipboard.GetDataObject();
-                if (data == null || data.GetDataPresent("Hwp Native", false)) return;
-                if (!data.GetDataPresent(DataFormats.UnicodeText, true)) return;
-                string text = data.GetData(DataFormats.UnicodeText, true) as string;
-                if (!String.IsNullOrEmpty(text)) onText(text);
-            }
-            catch (ExternalException)
-            {
-                // 다른 앱이 클립보드를 잠깐 점유한 경우 다음 복사 이벤트에서 다시 시도한다.
-            }
-        }
-
-        public void Dispose()
-        {
-            debounce.Stop();
-            debounce.Dispose();
-            if (Handle != IntPtr.Zero) RemoveClipboardFormatListener(Handle);
-            DestroyHandle();
         }
     }
 
@@ -471,6 +385,9 @@ namespace HwipCompanion
             hwp.Run("Copy");
             Thread.Sleep(80);
             OleFlushClipboard();
+            PreservePlainTextFallback(equation, new List<FragmentSegment> {
+                new FragmentSegment { type = "equation", value = equation }
+            });
             return CopyResult.Ok();
         }
 
@@ -586,13 +503,23 @@ namespace HwipCompanion
         private const int MaxEquationChars = 50000;
         private const int OperationTimeoutMs = 15000;
         private readonly Func<string, int, CopyResult> copyEquation;
+        private readonly Func<List<FragmentSegment>, string, int, CopyResult> copyFragment;
+        private readonly string developmentExtensionOrigin;
         private readonly SemaphoreSlim operation = new SemaphoreSlim(1, 1);
         private readonly JavaScriptSerializer json = new JavaScriptSerializer { MaxJsonLength = MaxBodyBytes };
         private TcpListener listener;
         private Thread listenThread;
         private volatile bool stopping;
 
-        internal LocalServer(Func<string, int, CopyResult> copyEquation) { this.copyEquation = copyEquation; }
+        internal LocalServer(
+            Func<string, int, CopyResult> copyEquation,
+            Func<List<FragmentSegment>, string, int, CopyResult> copyFragment,
+            string developmentExtensionOrigin)
+        {
+            this.copyEquation = copyEquation;
+            this.copyFragment = copyFragment;
+            this.developmentExtensionOrigin = developmentExtensionOrigin;
+        }
 
         internal void Start()
         {
@@ -629,16 +556,32 @@ namespace HwipCompanion
                     if (!IsAllowedOrigin(req.Origin)) { Write(client, 403, req.Origin, CopyResult.Fail("ORIGIN_DENIED", "허용되지 않은 웹사이트입니다.")); return; }
                     if (req.Method == "OPTIONS") { Write(client, 204, req.Origin, null); return; }
                     if (req.Method == "GET" && req.Path == "/health") { Write(client, 200, req.Origin, new Dictionary<string, object> { { "ok", true }, { "version", "1.0.0" } }); return; }
-                    if (req.Method != "POST" || req.Path != "/v1/equation/copy") { Write(client, 404, req.Origin, CopyResult.Fail("NOT_FOUND", "지원하지 않는 요청입니다.")); return; }
-
-                    var payload = json.Deserialize<Dictionary<string, object>>(req.BodyText);
-                    string equation = payload != null && payload.ContainsKey("equation") ? Convert.ToString(payload["equation"]) : null;
-                    if (String.IsNullOrWhiteSpace(equation)) { Write(client, 400, req.Origin, CopyResult.Fail("EQUATION_REQUIRED", "수식 문자열이 필요합니다.")); return; }
-                    if (equation.Length > MaxEquationChars) { Write(client, 413, req.Origin, CopyResult.Fail("EQUATION_TOO_LONG", "수식은 최대 50,000자까지 처리할 수 있습니다.")); return; }
                     if (!operation.Wait(0)) { Write(client, 409, req.Origin, CopyResult.Fail("BUSY", "다른 수식을 처리 중입니다.")); return; }
                     try
                     {
-                        CopyResult result = copyEquation(equation, OperationTimeoutMs);
+                        CopyResult result;
+                        if (req.Method == "POST" && req.Path == "/v1/equation/copy")
+                        {
+                            var payload = json.Deserialize<Dictionary<string, object>>(req.BodyText);
+                            string equation = payload != null && payload.ContainsKey("equation") ? Convert.ToString(payload["equation"]) : null;
+                            if (String.IsNullOrWhiteSpace(equation)) { Write(client, 400, req.Origin, CopyResult.Fail("EQUATION_REQUIRED", "수식 문자열이 필요합니다.")); return; }
+                            if (equation.Length > MaxEquationChars) { Write(client, 413, req.Origin, CopyResult.Fail("EQUATION_TOO_LONG", "수식은 최대 50,000자까지 처리할 수 있습니다.")); return; }
+                            result = copyEquation(equation, OperationTimeoutMs);
+                        }
+                        else if (req.Method == "POST" && req.Path == "/v1/fragment/copy")
+                        {
+                            FragmentEnvelope fragment = json.Deserialize<FragmentEnvelope>(req.BodyText);
+                            if (fragment == null || fragment.segments == null || fragment.segments.Count == 0)
+                            { Write(client, 400, req.Origin, CopyResult.Fail("FRAGMENT_REQUIRED", "텍스트·수식 조각이 필요합니다.")); return; }
+                            if (fragment.segments.Count > 1000)
+                            { Write(client, 413, req.Origin, CopyResult.Fail("TOO_MANY_SEGMENTS", "한 번에 처리할 수 있는 조각은 1,000개입니다.")); return; }
+                            result = copyFragment(fragment.segments, fragment.fallbackText, OperationTimeoutMs);
+                        }
+                        else
+                        {
+                            Write(client, 404, req.Origin, CopyResult.Fail("NOT_FOUND", "지원하지 않는 요청입니다."));
+                            return;
+                        }
                         Write(client, result.success ? 200 : 500, req.Origin, result);
                     }
                     finally { operation.Release(); }
@@ -687,9 +630,12 @@ namespace HwipCompanion
             return new Request { Method = first[0].ToUpperInvariant(), Path = first[1].Split('?')[0], Origin = origin, BodyText = Encoding.UTF8.GetString(body) };
         }
 
-        private static bool IsAllowedOrigin(string origin)
+        private bool IsAllowedOrigin(string origin)
         {
             if (String.IsNullOrEmpty(origin)) return false;
+            if (origin == Program.StoreExtensionOrigin) return true;
+            if (!String.IsNullOrEmpty(developmentExtensionOrigin) &&
+                String.Equals(origin.TrimEnd('/'), developmentExtensionOrigin, StringComparison.OrdinalIgnoreCase)) return true;
             if (origin == "https://hwip.dshs.dev" || origin == "https://www.hwip.dshs.dev") return true;
             Uri uri;
             return Uri.TryCreate(origin, UriKind.Absolute, out uri) && uri.Scheme == "http" &&

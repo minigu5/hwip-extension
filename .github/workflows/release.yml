@@ -4,13 +4,35 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - 'ext-v*'
+      - 'companion-v*'
 
 permissions:
   contents: write
 
 jobs:
+  extension:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/ext-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package Chrome extension
+        run: |
+          zip -r hwip-extension.zip \
+            manifest.json background.js LICENSE README.md \
+            _locales content convert icons lib popup sidepanel templates
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension
+          path: hwip-extension.zip
+      - name: Attach extension to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" hwip-extension.zip --generate-notes
+
   windows-companion:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/companion-v')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,31 +45,9 @@ jobs:
           path: |
             companion/windows/dist/HwipCompanion.exe
             companion/windows/dist/HwipCompanion.sha256
-
-  extension:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Package Chrome extension
-        run: |
-          zip -r hwip-extension.zip \
-            manifest.json background.js LICENSE README.md \
-            _locales content convert icons lib popup sidepanel store templates
-      - uses: actions/upload-artifact@v4
-        with:
-          name: chrome-extension
-          path: hwip-extension.zip
-
-  github-release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: [windows-companion, extension]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-      - name: Attach files to GitHub Release
+      - name: Attach companion to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" artifacts/* --generate-notes
+        run: gh release create "${env:GITHUB_REF_NAME}" companion/windows/dist/HwipCompanion.exe companion/windows/dist/HwipCompanion.sha256 --generate-notes

@@ -47,8 +47,8 @@ ChatGPT·Claude는 수식을 **KaTeX**로 렌더링하며, 원본 LaTeX를 DOM�
 powershell -ExecutionPolicy Bypass -File companion/windows/build.ps1
 ```
 
-버전 태그를 푸시하면 GitHub Actions가 Windows 프로그램과 Chrome 확장 ZIP을 서로 분리해
-빌드하고 같은 GitHub Release에 첨부한다.
+`ext-v*` 태그는 Chrome 확장 ZIP을, `companion-v*` 태그는 Windows 프로그램을 각각 별도
+GitHub Release로 빌드한다.
 
 ## 설치
 
