@@ -429,6 +429,8 @@ namespace HwipCompanion
             }
 
             if (!hasEquation) return CopyResult.Fail("EQUATION_REQUIRED", "선택한 내용에 수식이 없습니다.");
+            if (!ClipboardStillContains(fallbackText))
+                return CopyResult.Fail("CLIPBOARD_CHANGED", "변환 중 다른 내용을 복사해 클립보드를 바꾸지 않았습니다.");
             hwp.Run("MoveDocBegin");
             hwp.Run("SelectAll");
             hwp.Run("Copy");
@@ -436,6 +438,20 @@ namespace HwipCompanion
             OleFlushClipboard();
             PreservePlainTextFallback(fallbackText, segments);
             return CopyResult.OkFragment();
+        }
+
+        private static bool ClipboardStillContains(string expectedText)
+        {
+            if (expectedText == null) return false;
+            string currentText = Clipboard.ContainsText(TextDataFormat.UnicodeText)
+                ? Clipboard.GetText(TextDataFormat.UnicodeText)
+                : String.Empty;
+            return String.Equals(NormalizeNewlines(currentText), NormalizeNewlines(expectedText), StringComparison.Ordinal);
+        }
+
+        private static string NormalizeNewlines(string value)
+        {
+            return (value ?? String.Empty).Replace("\r\n", "\n").Replace("\r", "\n");
         }
 
         private static void PreservePlainTextFallback(string fallbackText, List<FragmentSegment> segments)
