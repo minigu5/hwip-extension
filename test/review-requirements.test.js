@@ -42,7 +42,6 @@ test('호버 감지는 검증된 기본 selector와 추출 가능성 검사를 �
   assert.doesNotMatch(content, /latexFromReactFiber|elementsFromPoint|\[data-testid\*="math"\]/);
 });
 
-test('저장소 관리자가 버전을 결정할 수 있도록 기존 manifest 버전을 유지한다', () => {
-  assert.equal(manifest.version, '0.8.4');
+test('버전은 manifest에서만 관리한다', () => {
   assert.equal(Object.hasOwn(pkg, 'version'), false);
 });

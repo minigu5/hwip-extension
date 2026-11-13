@@ -71,6 +71,9 @@
   "settingWindowsNativeCopy": {
     "message": "Windows 수식 개체 변환"
   },
+  "companionDownload": {
+    "message": "프로그램 받기"
+  },
   "companionConnected": {
     "message": "Windows 프로그램 연결됨 · 한글 수식 개체 모드"
   },

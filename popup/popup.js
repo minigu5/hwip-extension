@@ -40,11 +40,13 @@ if (chrome.sidePanel) {
   var langSelect = document.getElementById('langSelect');
   var companionStatus = document.getElementById('companionStatus');
   var companionStatusText = document.getElementById('companionStatusText');
+  var companionDownload = document.getElementById('companionDownload');
   var COMPANION_ORIGIN = 'http://127.0.0.1:38473/*';
 
   function refreshCompanionStatus() {
     if (!chrome.runtime || !companionStatus || !companionStatusText) return;
     chrome.storage.sync.get({ windowsNativeCopy: false }, function (values) {
+      if (companionDownload) companionDownload.hidden = true;
       if (!values.windowsNativeCopy) {
         companionStatus.className = 'companion-status basic';
         companionStatusText.textContent = i18n('companionOptInOff');
@@ -55,6 +57,7 @@ if (chrome.sidePanel) {
         var connected = !chrome.runtime.lastError && state && state.available;
         companionStatus.className = 'companion-status ' + (connected ? 'connected' : 'basic');
         companionStatusText.textContent = i18n(connected ? 'companionConnected' : 'companionNotConnected');
+        if (companionDownload) companionDownload.hidden = !!connected;
       });
     });
   }

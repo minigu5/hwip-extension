@@ -71,6 +71,9 @@
   "settingWindowsNativeCopy": {
     "message": "Windows equation objects"
   },
+  "companionDownload": {
+    "message": "Download"
+  },
   "companionConnected": {
     "message": "Windows companion connected · native HWP equation mode"
   },

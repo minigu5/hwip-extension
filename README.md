@@ -55,16 +55,12 @@ ChatGPT·Claude는 수식을 **KaTeX**로 렌더링하며, 원본 LaTeX를 DOM�
 
 ## Windows 보조 프로그램
 
-편집 가능한 한글 수식 개체 붙여넣기를 담당하는 Windows 보조 프로그램도 이 저장소의
-`companion/windows`에서 함께 관리한다. 다음 명령을 실행하면
-`companion/windows/dist`에 EXE와 SHA-256 파일이 생성된다.
+편집 가능한 한글 수식 개체 붙여넣기를 담당하는 Windows 보조 프로그램은 공개 저장소
+[minigu5/hwip-companion](https://github.com/minigu5/hwip-companion)에서 관리·배포한다.
+이 저장소는 비공개라 Release 파일을 일반 사용자가 내려받을 수 없기 때문이다.
+팝업에서 Windows 수식 개체 변환을 켰는데 프로그램이 연결되지 않으면 그 저장소로 가는 "프로그램 받기" 링크가 보인다.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File companion/windows/build.ps1
-```
-
-`ext-v*` 태그는 Chrome 확장 ZIP을, `companion-v*` 태그는 Windows 프로그램을 각각 별도
-GitHub Release로 빌드한다.
+`ext-v*` 태그는 Chrome 확장 ZIP을 GitHub Release로 빌드한다.
 
 ## 설치
 
