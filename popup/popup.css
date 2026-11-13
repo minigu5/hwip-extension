@@ -194,6 +194,7 @@ textarea:focus { outline: 2px solid var(--accent); border-color: var(--accent); 
 
 /* 뷰 전환 */
 .view[hidden] { display: none; }
+.companion-status[hidden], .settings-row[hidden] { display: none; }
 
 /* 설정 뷰 */
 .settings-list {
@@ -212,6 +213,10 @@ textarea:focus { outline: 2px solid var(--accent); border-color: var(--accent); 
 }
 .settings-row + .settings-row { border-top: 1px solid var(--border); }
 .settings-name { font-size: 0.85rem; font-weight: 500; }
+.settings-label { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-right: 10px; }
+.settings-note { font-size: 0.72rem; line-height: 1.4; color: var(--muted); word-break: keep-all; }
+.settings-note a { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.settings-note a:hover { color: var(--accent-hover); text-decoration: underline; }
 .settings-select {
   font: inherit;
   font-size: 0.8rem;

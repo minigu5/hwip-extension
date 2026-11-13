@@ -41,10 +41,26 @@ if (chrome.sidePanel) {
   var companionStatus = document.getElementById('companionStatus');
   var companionStatusText = document.getElementById('companionStatusText');
   var companionDownload = document.getElementById('companionDownload');
+  var companionNote = document.getElementById('companionNote');
+  var companionNoteText = document.getElementById('companionNoteText');
+  function setCompanionNote(key) {
+    if (!companionNote || !companionNoteText) return;
+    companionNote.hidden = !key;
+    companionNoteText.textContent = key ? i18n(key) : '';
+    var link = companionNote.querySelector('a');
+    if (link) link.hidden = key !== 'companionNotFound';
+  }
   var COMPANION_ORIGIN = 'http://127.0.0.1:38473/*';
+  var isWindows = /win/i.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '');
+  if (!isWindows) {
+    // Windows 전용 기능이라 다른 OS에서는 상태 줄과 설정 줄을 숨긴다.
+    if (companionStatus) companionStatus.hidden = true;
+    var companionRow = toggleWindowsNativeCopy && toggleWindowsNativeCopy.closest('.settings-row');
+    if (companionRow) companionRow.hidden = true;
+  }
 
   function refreshCompanionStatus() {
-    if (!chrome.runtime || !companionStatus || !companionStatusText) return;
+    if (!isWindows || !chrome.runtime || !companionStatus || !companionStatusText) return;
     chrome.storage.sync.get({ windowsNativeCopy: false }, function (values) {
       if (companionDownload) companionDownload.hidden = true;
       if (!values.windowsNativeCopy) {
@@ -191,7 +207,22 @@ if (chrome.sidePanel) {
             chrome.storage.sync.set({ windowsNativeCopy: false }, refreshCompanionStatus);
             return;
           }
-          chrome.storage.sync.set({ windowsNativeCopy: true }, refreshCompanionStatus);
+          // 보조 프로그램이 응답할 때만 켠다. 없으면 권한을 반납하고 내려받기 링크를 보여 준다.
+          toggleWindowsNativeCopy.disabled = true;
+          setCompanionNote('companionChecking');
+          chrome.runtime.sendMessage({ type: 'probe-hwip-companion' }, function (res) {
+            toggleWindowsNativeCopy.disabled = false;
+            if (!chrome.runtime.lastError && res && res.available) {
+              setCompanionNote(null);
+              chrome.storage.sync.set({ windowsNativeCopy: true }, refreshCompanionStatus);
+              return;
+            }
+            toggleWindowsNativeCopy.checked = false;
+            setCompanionNote('companionNotFound');
+            chrome.storage.sync.set({ windowsNativeCopy: false }, function () {
+              chrome.permissions.remove({ origins: [COMPANION_ORIGIN] }, refreshCompanionStatus);
+            });
+          });
         });
         return;
       }

@@ -207,6 +207,13 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     sendResponse(companionState);
     return false;
   }
+  // 켜기 전 확인용: 사용자가 루프백 권한을 허용한 직후 보조 프로그램이 실제로 응답하는지 본다.
+  if (msg && msg.type === 'probe-hwip-companion') {
+    self.HwipCompanionDetection.probe(fetch, COMPANION_HEALTH_URL, 1200, 'cors').then(function (available) {
+      sendResponse({ available: available });
+    });
+    return true;
+  }
   if (msg && msg.type === 'copy-hwip-fragment') {
     if (!companionEnabled) { sendResponse({ ok: false, error: 'disabled' }); return false; }
     var fragment = msg.fragment;

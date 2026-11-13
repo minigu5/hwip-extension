@@ -71,6 +71,9 @@
   "settingWindowsNativeCopy": {
     "message": "Windows equation objects"
   },
+  "companionNotFound": {
+    "message": "Windows companion not found. Install and start it, then try again"
+  },
   "companionDownload": {
     "message": "Download"
   },
