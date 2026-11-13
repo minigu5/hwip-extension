@@ -23,6 +23,10 @@
     chrome.runtime.onMessage.addListener(function (message) {
       if (message && message.type === 'hwip-companion-state') companionAvailable = message.enabled === true && message.available === true;
     });
+    chrome.runtime.sendMessage({ type: 'get-hwip-companion-state' }, function (message) {
+      if (!chrome.runtime.lastError && message)
+        companionAvailable = message.enabled === true && message.available === true;
+    });
   }
   if (storageApi) {
     chrome.storage.sync.get({ autoFormulaCopy: true }, function (s) {

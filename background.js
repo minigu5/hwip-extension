@@ -23,6 +23,7 @@ var SCRIPT_ID = 'hwp-force-on';
 var INJECT_JS_FORCED = ['content/i18n-content.js', 'content/content-forced.js', 'content/companion-mode.js', 'content/content.js', 'content/report-extract.js'];
 var INJECT_CSS = ['content/content.css'];
 var COMPANION_ALARM = 'hwip-companion-probe';
+var COMPANION_ORIGIN = 'http://127.0.0.1:38473/*';
 var COMPANION_HEALTH_URL = 'http://127.0.0.1:38473/health';
 var COMPANION_FRAGMENT_URL = 'http://127.0.0.1:38473/v1/fragment/copy';
 var companionEnabled = false;
@@ -69,12 +70,23 @@ function applyCompanionEnabled(enabled) {
   chrome.alarms.create(COMPANION_ALARM, { periodInMinutes: 0.5 });
   probeCompanion();
 }
+function applyCompanionEnabledIfPermitted(enabled) {
+  if (!enabled) { applyCompanionEnabled(false); return; }
+  chrome.permissions.contains({ origins: [COMPANION_ORIGIN] }, function (granted) {
+    if (chrome.runtime.lastError || !granted) {
+      applyCompanionEnabled(false);
+      chrome.storage.sync.set({ windowsNativeCopy: false });
+      return;
+    }
+    applyCompanionEnabled(true);
+  });
+}
 chrome.storage.sync.get({ windowsNativeCopy: false }, function (values) {
-  applyCompanionEnabled(values.windowsNativeCopy === true);
+  applyCompanionEnabledIfPermitted(values.windowsNativeCopy === true);
 });
 chrome.storage.onChanged.addListener(function (changes, areaName) {
   if (areaName === 'sync' && changes.windowsNativeCopy)
-    applyCompanionEnabled(changes.windowsNativeCopy.newValue === true);
+    applyCompanionEnabledIfPermitted(changes.windowsNativeCopy.newValue === true);
 });
 chrome.alarms.onAlarm.addListener(function (alarm) {
   if (alarm && alarm.name === COMPANION_ALARM && companionEnabled) probeCompanion();
@@ -184,7 +196,11 @@ chrome.permissions.onAdded.addListener(function (perms) {
     });
   });
 });
-chrome.permissions.onRemoved.addListener(function () { syncDynamicScripts(); });
+chrome.permissions.onRemoved.addListener(function (perms) {
+  syncDynamicScripts();
+  if (perms && perms.origins && perms.origins.indexOf(COMPANION_ORIGIN) !== -1)
+    chrome.storage.sync.set({ windowsNativeCopy: false });
+});
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === 'get-hwip-companion-state') {

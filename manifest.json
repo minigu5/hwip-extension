@@ -27,7 +27,8 @@
   ],
   "optional_host_permissions": [
     "<all_urls>",
-    "file:///*"
+    "file:///*",
+    "http://127.0.0.1:38473/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -84,7 +85,6 @@
   ],
   "host_permissions": [
     "https://hwip.dshs.dev/*",
-    "http://127.0.0.1:38473/*",
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://claude.ai/*",

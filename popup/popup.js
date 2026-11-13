@@ -40,6 +40,7 @@ if (chrome.sidePanel) {
   var langSelect = document.getElementById('langSelect');
   var companionStatus = document.getElementById('companionStatus');
   var companionStatusText = document.getElementById('companionStatusText');
+  var COMPANION_ORIGIN = 'http://127.0.0.1:38473/*';
 
   function refreshCompanionStatus() {
     if (!chrome.runtime || !companionStatus || !companionStatusText) return;
@@ -180,7 +181,20 @@ if (chrome.sidePanel) {
   }
   if (toggleWindowsNativeCopy) {
     toggleWindowsNativeCopy.addEventListener('change', function () {
-      chrome.storage.sync.set({ windowsNativeCopy: toggleWindowsNativeCopy.checked }, refreshCompanionStatus);
+      if (toggleWindowsNativeCopy.checked) {
+        chrome.permissions.request({ origins: [COMPANION_ORIGIN] }, function (granted) {
+          if (chrome.runtime.lastError || !granted) {
+            toggleWindowsNativeCopy.checked = false;
+            chrome.storage.sync.set({ windowsNativeCopy: false }, refreshCompanionStatus);
+            return;
+          }
+          chrome.storage.sync.set({ windowsNativeCopy: true }, refreshCompanionStatus);
+        });
+        return;
+      }
+      chrome.storage.sync.set({ windowsNativeCopy: false }, function () {
+        chrome.permissions.remove({ origins: [COMPANION_ORIGIN] }, refreshCompanionStatus);
+      });
     });
   }
   if (toggleHwpxReport) {

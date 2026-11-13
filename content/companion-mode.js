@@ -32,6 +32,9 @@
   chrome.runtime.onMessage.addListener(function (message) {
     if (message && message.type === 'hwip-companion-state') updateState(message);
   });
+  chrome.runtime.sendMessage({ type: 'get-hwip-companion-state' }, function (message) {
+    if (!chrome.runtime.lastError && message) updateState(message);
+  });
 
   function latexOf(el) {
     var data = el.closest && el.closest('[data-math],[data-math-source]');
@@ -56,6 +59,7 @@
     var root = selection.getRangeAt(0).cloneContents();
     if (!root.querySelector || !root.querySelector(MATH_SELECTOR)) return null;
     var segments = [];
+    var extractionFailed = false;
 
     function walk(node) {
       if (node.nodeType === Node.TEXT_NODE) return push(segments, 'text', node.nodeValue || '');
@@ -67,7 +71,8 @@
       if (/^(SCRIPT|STYLE|NOSCRIPT)$/.test(el.tagName) || el.getAttribute('aria-hidden') === 'true') return;
       if (el.matches(MATH_SELECTOR)) {
         var latex = latexOf(el);
-        if (latex) push(segments, 'latex', latex);
+        if (!latex) extractionFailed = true;
+        else push(segments, 'latex', latex);
         return;
       }
       if (el.tagName === 'BR') return push(segments, 'text', '\n');
@@ -76,6 +81,7 @@
     }
 
     walk(root);
+    if (extractionFailed) return null;
     return segments.some(function (segment) { return segment.type === 'latex'; }) ? segments : null;
   }
 

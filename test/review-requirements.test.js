@@ -19,7 +19,22 @@ test('Windows 수식 개체 변환은 opt-in이며 클립보드 marker를 쓰지
 
 test('상태 확인은 background에서만 수행한다', () => {
   assert.match(background, /COMPANION_ALARM/);
-  assert.doesNotMatch(companionMode, /setInterval|get-hwip-companion-state/);
+  assert.doesNotMatch(companionMode, /setInterval|fetch\s*\(\s*COMPANION_HEALTH_URL/);
+  assert.match(companionMode, /get-hwip-companion-state/);
+  assert.match(content, /get-hwip-companion-state/);
+});
+
+test('루프백 접근은 사용자가 토글을 켤 때만 요청하는 optional 권한이다', () => {
+  assert.doesNotMatch(manifest.host_permissions.join('\n'), /127\.0\.0\.1:38473/);
+  assert.match(manifest.optional_host_permissions.join('\n'), /127\.0\.0\.1:38473/);
+  const popup = fs.readFileSync('popup/popup.js', 'utf8');
+  assert.match(popup, /chrome\.permissions\.request/);
+  assert.match(popup, /chrome\.permissions\.remove/);
+});
+
+test('LaTeX를 추출하지 못한 수식이 있으면 문단 변환 전체를 포기한다', () => {
+  assert.match(companionMode, /extractionFailed = true/);
+  assert.match(companionMode, /if \(extractionFailed\) return null/);
 });
 
 test('호버 감지는 검증된 기본 selector와 추출 가능성 검사를 사용한다', () => {
