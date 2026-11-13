@@ -652,10 +652,7 @@ namespace HwipCompanion
             if (origin == Program.StoreExtensionOrigin) return true;
             if (!String.IsNullOrEmpty(developmentExtensionOrigin) &&
                 String.Equals(origin.TrimEnd('/'), developmentExtensionOrigin, StringComparison.OrdinalIgnoreCase)) return true;
-            if (origin == "https://hwip.dshs.dev" || origin == "https://www.hwip.dshs.dev") return true;
-            Uri uri;
-            return Uri.TryCreate(origin, UriKind.Absolute, out uri) && uri.Scheme == "http" &&
-                   (uri.Host == "127.0.0.1" || uri.Host == "localhost");
+            return false;
         }
 
         private void Write(TcpClient client, int status, string origin, object value)
