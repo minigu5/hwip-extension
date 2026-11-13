@@ -55,12 +55,13 @@ ChatGPT·Claude는 수식을 **KaTeX**로 렌더링하며, 원본 LaTeX를 DOM�
 
 ## Windows 보조 프로그램
 
-편집 가능한 한글 수식 개체 붙여넣기를 담당하는 Windows 보조 프로그램은 공개 저장소
-[minigu5/hwip-companion](https://github.com/minigu5/hwip-companion)에서 관리·배포한다.
-이 저장소는 비공개라 Release 파일을 일반 사용자가 내려받을 수 없기 때문이다.
-팝업에서 Windows 수식 개체 변환을 켰는데 프로그램이 연결되지 않으면 그 저장소로 가는 "프로그램 받기" 링크가 보인다.
+편집 가능한 한글 수식 개체 붙여넣기를 담당하는 Windows 보조 프로그램은
+[`companion/windows`](companion/windows)에서 함께 관리한다. 사용자는
+[Releases](https://github.com/minigu5/hwip-extension/releases/latest/download/HwipCompanion.exe)에서 EXE를 내려받는다.
+팝업에서 Windows 수식 개체 변환을 켰는데 프로그램을 찾지 못하면 "프로그램 받기" 링크가 보인다.
 
-`ext-v*` 태그는 Chrome 확장 ZIP을 GitHub Release로 빌드한다.
+`companion-v*` 태그는 Windows 프로그램을, `ext-v*` 태그는 Chrome 확장 ZIP을 각각 GitHub Release로 빌드한다.
+확장 릴리스는 Latest로 표시하지 않아 `releases/latest/download/HwipCompanion.exe`가 항상 최신 보조 프로그램을 가리킨다.
 
 ## 설치
 
