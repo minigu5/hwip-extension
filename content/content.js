@@ -13,6 +13,21 @@
 
   var ready = window.__hwpMsgReady || Promise.resolve(); // i18n-content.js 의 언어 로드
   var storageApi = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync;
+  var nativeCopyEnabled = false;
+  var companionAvailable = false;
+  if (storageApi) {
+    chrome.storage.sync.get({ windowsNativeCopy: false }, function (s) { nativeCopyEnabled = s.windowsNativeCopy === true; });
+    chrome.storage.onChanged.addListener(function (changes, areaName) {
+      if (areaName === 'sync' && changes.windowsNativeCopy) nativeCopyEnabled = changes.windowsNativeCopy.newValue === true;
+    });
+    chrome.runtime.onMessage.addListener(function (message) {
+      if (message && message.type === 'hwip-companion-state') companionAvailable = message.enabled === true && message.available === true;
+    });
+    chrome.runtime.sendMessage({ type: 'get-hwip-companion-state' }, function (message) {
+      if (!chrome.runtime.lastError && message)
+        companionAvailable = message.enabled === true && message.available === true;
+    });
+  }
   if (storageApi) {
     chrome.storage.sync.get({ autoFormulaCopy: true }, function (s) {
       if (s.autoFormulaCopy) ready.then(init);
@@ -230,7 +245,17 @@
     convert(latex, function(err, hwp) {
       btn.disabled = false;
       if (err || !hwp) { flash(hwpMsg('flashFailed', '변환 실패')); return; }
-      copyText(hwp, function () { flash(hwpMsg('copied', '복사됨!')); });
+      if (nativeCopyEnabled && companionAvailable) {
+        chrome.runtime.sendMessage({
+          type: 'copy-hwip-fragment',
+          fragment: { segments: [{ type: 'equation', value: hwp }], fallbackText: hwp }
+        }, function (response) {
+          if (!chrome.runtime.lastError && response && response.ok) { flash(hwpMsg('copied', '복사됨!')); return; }
+          copyText(hwp, function () { flash(hwpMsg('copied', '복사됨!')); });
+        });
+      } else {
+        copyText(hwp, function () { flash(hwpMsg('copied', '복사됨!')); });
+      }
     });
   });
   btn.addEventListener('mousedown', function (e) { e.stopPropagation(); });

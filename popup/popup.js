@@ -35,8 +35,35 @@ if (chrome.sidePanel) {
   var mainView = document.getElementById('mainView');
   var settingsView = document.getElementById('settingsView');
   var toggleFormulaCopy = document.getElementById('toggleFormulaCopy');
+  var toggleWindowsNativeCopy = document.getElementById('toggleWindowsNativeCopy');
   var toggleHwpxReport = document.getElementById('toggleHwpxReport');
   var langSelect = document.getElementById('langSelect');
+  var companionStatus = document.getElementById('companionStatus');
+  var companionStatusText = document.getElementById('companionStatusText');
+  var COMPANION_ORIGIN = 'http://127.0.0.1:38473/*';
+
+  function refreshCompanionStatus() {
+    if (!chrome.runtime || !companionStatus || !companionStatusText) return;
+    chrome.storage.sync.get({ windowsNativeCopy: false }, function (values) {
+      if (!values.windowsNativeCopy) {
+        companionStatus.className = 'companion-status basic';
+        companionStatusText.textContent = i18n('companionOptInOff');
+        return;
+      }
+      companionStatusText.textContent = i18n('companionChecking');
+      chrome.runtime.sendMessage({ type: 'get-hwip-companion-state' }, function (state) {
+        var connected = !chrome.runtime.lastError && state && state.available;
+        companionStatus.className = 'companion-status ' + (connected ? 'connected' : 'basic');
+        companionStatusText.textContent = i18n(connected ? 'companionConnected' : 'companionNotConnected');
+      });
+    });
+  }
+
+  chrome.runtime.onMessage.addListener(function (message) {
+    if (message && message.type === 'hwip-companion-state') refreshCompanionStatus();
+  });
+
+  refreshCompanionStatus();
 
   if (siteLinkBtn) {
     siteLinkBtn.addEventListener('click', function (e) {
@@ -121,7 +148,7 @@ if (chrome.sidePanel) {
   input.focus();
 
   // ── 설정 뷰 전환 ───────────────────────────────────────────────
-  var STORAGE_DEFAULTS = { autoFormulaCopy: true, autoHwpxReport: true, uiLang: 'auto' };
+  var STORAGE_DEFAULTS = { windowsNativeCopy: false, autoFormulaCopy: true, autoHwpxReport: true, uiLang: 'auto' };
 
   function showSettings() {
     mainView.hidden = true;
@@ -129,6 +156,7 @@ if (chrome.sidePanel) {
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.sync.get(STORAGE_DEFAULTS, function (s) {
         toggleFormulaCopy.checked = !!s.autoFormulaCopy;
+        toggleWindowsNativeCopy.checked = s.windowsNativeCopy === true;
         toggleHwpxReport.checked = !!s.autoHwpxReport;
         langSelect.value = s.uiLang;
       });
@@ -149,6 +177,24 @@ if (chrome.sidePanel) {
       if (typeof chrome !== 'undefined' && chrome.storage) {
         chrome.storage.sync.set({ autoFormulaCopy: toggleFormulaCopy.checked });
       }
+    });
+  }
+  if (toggleWindowsNativeCopy) {
+    toggleWindowsNativeCopy.addEventListener('change', function () {
+      if (toggleWindowsNativeCopy.checked) {
+        chrome.permissions.request({ origins: [COMPANION_ORIGIN] }, function (granted) {
+          if (chrome.runtime.lastError || !granted) {
+            toggleWindowsNativeCopy.checked = false;
+            chrome.storage.sync.set({ windowsNativeCopy: false }, refreshCompanionStatus);
+            return;
+          }
+          chrome.storage.sync.set({ windowsNativeCopy: true }, refreshCompanionStatus);
+        });
+        return;
+      }
+      chrome.storage.sync.set({ windowsNativeCopy: false }, function () {
+        chrome.permissions.remove({ origins: [COMPANION_ORIGIN] }, refreshCompanionStatus);
+      });
     });
   }
   if (toggleHwpxReport) {

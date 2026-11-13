@@ -10,6 +10,7 @@
     "scripting",
     "activeTab",
     "storage",
+    "alarms",
     "sidePanel"
   ],
   "side_panel": {
@@ -26,7 +27,8 @@
   ],
   "optional_host_permissions": [
     "<all_urls>",
-    "file:///*"
+    "file:///*",
+    "http://127.0.0.1:38473/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -71,6 +73,7 @@
       ],
       "js": [
         "content/i18n-content.js",
+        "content/companion-mode.js",
         "content/content.js",
         "content/report-extract.js"
       ],

@@ -1,5 +1,7 @@
 'use strict';
 
+importScripts('lib/companion-detection.js');
+
 /*
  * background service worker
  *
@@ -18,8 +20,77 @@
  */
 
 var SCRIPT_ID = 'hwp-force-on';
-var INJECT_JS_FORCED = ['content/i18n-content.js', 'content/content-forced.js', 'content/content.js', 'content/report-extract.js'];
+var INJECT_JS_FORCED = ['content/i18n-content.js', 'content/content-forced.js', 'content/companion-mode.js', 'content/content.js', 'content/report-extract.js'];
 var INJECT_CSS = ['content/content.css'];
+var COMPANION_ALARM = 'hwip-companion-probe';
+var COMPANION_ORIGIN = 'http://127.0.0.1:38473/*';
+var COMPANION_HEALTH_URL = 'http://127.0.0.1:38473/health';
+var COMPANION_FRAGMENT_URL = 'http://127.0.0.1:38473/v1/fragment/copy';
+var companionEnabled = false;
+var companionState = { enabled: false, available: false, checkedAt: 0 };
+var companionCheck = null;
+
+function companionMessage() {
+  return { type: 'hwip-companion-state', enabled: companionState.enabled, available: companionState.available, checkedAt: companionState.checkedAt };
+}
+function broadcastCompanionState(tabId) {
+  var message = companionMessage();
+  if (tabId) {
+    chrome.tabs.sendMessage(tabId, message, function () { void chrome.runtime.lastError; });
+    return;
+  }
+  chrome.tabs.query({}, function (tabs) {
+    if (chrome.runtime.lastError || !tabs) return;
+    tabs.forEach(function (tab) {
+      if (tab.id) chrome.tabs.sendMessage(tab.id, message, function () { void chrome.runtime.lastError; });
+    });
+  });
+}
+function setCompanionState(available) {
+  companionState = { enabled: companionEnabled, available: !!available, checkedAt: Date.now() };
+  broadcastCompanionState();
+  return companionState;
+}
+function probeCompanion() {
+  if (!companionEnabled) return Promise.resolve(companionState);
+  if (companionCheck) return companionCheck;
+  companionCheck = self.HwipCompanionDetection.probe(fetch, COMPANION_HEALTH_URL, 1200, 'cors')
+    .then(setCompanionState)
+    .then(function (state) { companionCheck = null; return state; });
+  return companionCheck;
+}
+function applyCompanionEnabled(enabled) {
+  companionEnabled = !!enabled;
+  companionState = { enabled: companionEnabled, available: false, checkedAt: 0 };
+  if (!companionEnabled) {
+    chrome.alarms.clear(COMPANION_ALARM);
+    broadcastCompanionState();
+    return;
+  }
+  chrome.alarms.create(COMPANION_ALARM, { periodInMinutes: 0.5 });
+  probeCompanion();
+}
+function applyCompanionEnabledIfPermitted(enabled) {
+  if (!enabled) { applyCompanionEnabled(false); return; }
+  chrome.permissions.contains({ origins: [COMPANION_ORIGIN] }, function (granted) {
+    if (chrome.runtime.lastError || !granted) {
+      applyCompanionEnabled(false);
+      chrome.storage.sync.set({ windowsNativeCopy: false });
+      return;
+    }
+    applyCompanionEnabled(true);
+  });
+}
+chrome.storage.sync.get({ windowsNativeCopy: false }, function (values) {
+  applyCompanionEnabledIfPermitted(values.windowsNativeCopy === true);
+});
+chrome.storage.onChanged.addListener(function (changes, areaName) {
+  if (areaName === 'sync' && changes.windowsNativeCopy)
+    applyCompanionEnabledIfPermitted(changes.windowsNativeCopy.newValue === true);
+});
+chrome.alarms.onAlarm.addListener(function (alarm) {
+  if (alarm && alarm.name === COMPANION_ALARM && companionEnabled) probeCompanion();
+});
 
 function getStaticMatches() {
   try {
@@ -92,6 +163,10 @@ syncDynamicScripts();
 chrome.runtime.onInstalled.addListener(function () { syncDynamicScripts(); });
 chrome.runtime.onStartup.addListener(function () { syncDynamicScripts(); });
 
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo) {
+  if (changeInfo.status === 'complete' && companionEnabled) broadcastCompanionState(tabId);
+});
+
 chrome.tabs.onActivated.addListener(function (activeInfo) {
   chrome.storage.session.get('panelTabId', function (data) {
     var storedId = data && data.panelTabId;
@@ -121,9 +196,41 @@ chrome.permissions.onAdded.addListener(function (perms) {
     });
   });
 });
-chrome.permissions.onRemoved.addListener(function () { syncDynamicScripts(); });
+chrome.permissions.onRemoved.addListener(function (perms) {
+  syncDynamicScripts();
+  if (perms && perms.origins && perms.origins.indexOf(COMPANION_ORIGIN) !== -1)
+    chrome.storage.sync.set({ windowsNativeCopy: false });
+});
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+  if (msg && msg.type === 'get-hwip-companion-state') {
+    sendResponse(companionState);
+    return false;
+  }
+  if (msg && msg.type === 'copy-hwip-fragment') {
+    if (!companionEnabled) { sendResponse({ ok: false, error: 'disabled' }); return false; }
+    var fragment = msg.fragment;
+    if (!fragment || !Array.isArray(fragment.segments)) {
+      sendResponse({ ok: false, error: 'invalid-fragment' });
+      return false;
+    }
+    fetch(COMPANION_FRAGMENT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fragment),
+      cache: 'no-store'
+    }).then(function (response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    }).then(function (result) {
+      setCompanionState(true);
+      sendResponse({ ok: result && result.success !== false, result: result });
+    }).catch(function (error) {
+      setCompanionState(false);
+      sendResponse({ ok: false, error: String(error && error.message || error) });
+    });
+    return true;
+  }
   if (msg && msg.type === 'sync-scripts') {
     syncDynamicScripts(function () { sendResponse({ ok: true }); });
     return true;
