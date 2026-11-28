@@ -111,7 +111,7 @@
     "message": "수식 변환 자동 감지"
   },
   "settingAutoReport": {
-    "message": "ai보고서 자동 감지"
+    "message": "AI 답변을 HWP로 변환"
   },
   "settingsReloadHint": {
     "message": "웹사이트를 새로고침해야 적용됩니다."
